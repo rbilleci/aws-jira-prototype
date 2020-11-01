@@ -63,11 +63,7 @@ Build and push the docker image
     aws cloudformation deploy --template-file cfn-service.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
     cd ...
 
-#### Step 7 - Build and Deploy Team City Server
-
-
-
-# Pricing Notes
+# Notes on Costs
 
 * EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned throughput of 10 MB/s
 * RDS (single vs multi-az)

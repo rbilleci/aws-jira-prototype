@@ -1,8 +1,4 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: >
-  This template deploys an ECS cluster to the provided VPC and subnets
-  using an Auto Scaling Group
-
 Parameters:
 
   ALBSecurityGroup:
@@ -31,7 +27,7 @@ Parameters:
   MaxSize:
     Description: How many ECS hosts do you want to initially deploy?
     Type: Number
-    Default: 2
+    Default: 3
 
   MinSize:
     Description: How many ECS hosts do you want to initially deploy?
@@ -157,7 +153,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-        - arn:aws:iam::aws:policy/AdministratorAccess # TODO: narrow permission - needed for EFS access
+        - arn:aws:iam::aws:policy/AdministratorAccess # NOTE: narrow permission - needed for EFS access
       Policies:
         - PolicyName: ecs-role
           PolicyDocument:
@@ -182,10 +178,6 @@ Outputs:
   Cluster:
     Description: A reference to the ECS cluster
     Value: !Ref Cluster
-
-  AutoScalingGroupName:
-    Description: A reference to ECS AutoScaling Group Name
-    Value: !Ref AutoScalingGroup
 
   SecurityGroup:
     Description: A reference to the security group for load balancers

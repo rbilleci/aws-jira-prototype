@@ -81,10 +81,6 @@ Outputs:
     Description: A reference to the DB Database
     Value: !GetAtt DB.Endpoint.Address
 
-  EndpointPort:
-    Description: A reference to the DB Database
-    Value: !GetAtt DB.Endpoint.Port
-
   SecurityGroup:
     Description: RDS Security Group
     Value: !Ref SecurityGroup

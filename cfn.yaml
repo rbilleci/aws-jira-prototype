@@ -78,7 +78,7 @@ Outputs:
   Listener:
     Value: !GetAtt ALB.Outputs.Listener
     Export:
-      Name: !Sub ${AWS::StackName}-Listener
+      Name: !Sub ${AWS::StackName}-listener
 
   PrivateSubnets:
     Value: !GetAtt VPC.Outputs.PrivateSubnets
