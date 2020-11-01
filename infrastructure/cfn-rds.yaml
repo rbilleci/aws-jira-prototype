@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+
+  InstanceType:
+    Type: String
+
+  EnvironmentName:
+    Type: String
+
+  MultiAZ:
+    Type: String
+    Default: false
+    AllowedValues: [ false, true ]
+
+  Username:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    NoEcho: true
+
+  Password:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    NoEcho: true
+
+  PrivateSubnets:
+    Description: Choose which subnets this ECS cluster should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+
+  VPC:
+    Description: Choose which VPC this ECS cluster should be deployed to
+    Type: AWS::EC2::VPC::Id
+
+Resources:
+
+  DB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 100
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 35
+      CopyTagsToSnapshot: true
+      DBInstanceClass: !Ref InstanceType
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DeleteAutomatedBackups: false
+      DeletionProtection: false
+      EnableIAMDatabaseAuthentication: false
+      EnablePerformanceInsights: false
+      Engine: mysql
+      EngineVersion: 8.0.21
+      MasterUsername: !Ref Username
+      MasterUserPassword: !Ref Password
+      MultiAZ: !Ref MultiAZ
+      PreferredBackupWindow: 03:00-04:00
+      PreferredMaintenanceWindow: Sun:08:00-Sun:09:00
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      StorageType: gp2
+      VPCSecurityGroups: [ !Ref SecurityGroup ]
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Security Group for RDS
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub DB Subnet Group for ${EnvironmentName}
+      DBSubnetGroupName: !Ref EnvironmentName
+      SubnetIds: !Ref PrivateSubnets
+
+
+Outputs:
+
+  EndpointAddress:
+    Description: A reference to the DB Database
+    Value: !GetAtt DB.Endpoint.Address
+
+  EndpointPort:
+    Description: A reference to the DB Database
+    Value: !GetAtt DB.Endpoint.Port
+
+  SecurityGroup:
+    Description: RDS Security Group
+    Value: !Ref SecurityGroup

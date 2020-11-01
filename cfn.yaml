@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to deploy poc for Team City, JIRA environment
+Resources:
+
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infrastructure/cfn-alb.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        PublicSubnets: !GetAtt VPC.Outputs.PublicSubnets
+        VPC: !GetAtt VPC.Outputs.VPC
+
+  ECS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infrastructure/cfn-ecs.yaml
+      Parameters:
+        ALBSecurityGroup: !GetAtt ALB.Outputs.SecurityGroup
+        DesiredSize: 1
+        MinSize: 1
+        MaxSize: 3
+        EnvironmentName: !Ref AWS::StackName
+        InstanceType: r5a.xlarge
+        RDSSecurityGroup: !GetAtt RDS.Outputs.SecurityGroup
+        PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
+        VPC: !GetAtt VPC.Outputs.VPC
+
+  RDS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infrastructure/cfn-rds.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        InstanceType: db.m6g.large
+        MultiAZ: false
+        PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
+        Username: root
+        Password: password
+        VPC: !GetAtt VPC.Outputs.VPC
+
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infrastructure/cfn-vpc.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VpcCIDR: 10.180.0.0/16
+        PublicSubnet1CIDR: 10.180.0.0/21
+        PublicSubnet2CIDR: 10.180.8.0/21
+        PublicSubnet3CIDR: 10.180.16.0/21
+        PrivateSubnet1CIDR: 10.180.64.0/21
+        PrivateSubnet2CIDR: 10.180.72.0/21
+        PrivateSubnet3CIDR: 10.180.80.0/21
+
+Outputs:
+
+  RDSEndpointAddress:
+    Value: !GetAtt RDS.Outputs.EndpointAddress
+    Export:
+      Name: !Sub ${AWS::StackName}-rds-endpoint-address
+
+  ECSCluster:
+    Value: !GetAtt ECS.Outputs.Cluster
+    Export:
+      Name: !Sub ${AWS::StackName}-ecs-cluster
+
+  ECSSecurityGroup:
+    Value: !GetAtt ECS.Outputs.SecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-ecs-security-group
+
+  LoadBalancerDNSName:
+    Value: !GetAtt ALB.Outputs.DNSName
+    Export:
+      Name: !Sub ${AWS::StackName}-load-balancer-dns-name
+
+  Listener:
+    Value: !GetAtt ALB.Outputs.Listener
+    Export:
+      Name: !Sub ${AWS::StackName}-Listener
+
+  PrivateSubnets:
+    Value: !GetAtt VPC.Outputs.PrivateSubnets
+    Export:
+      Name: !Sub ${AWS::StackName}-private-subnets
+
+  VPC:
+    Value: !GetAtt VPC.Outputs.VPC
+    Export:
+      Name: !Sub ${AWS::StackName}-vpc
