@@ -65,8 +65,19 @@ Build and push the docker image
     aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
     docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
     docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    aws cloudformation deploy --template-file cfn-service.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
+    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
+    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
     cd ...
+
+You can now login to JIRA and complete the setup steps.
+
+1. Login to the AWS Management Console 
+2. Navigate to CloudFront
+3. Get the URL of the distribution
+4. Go to the distribution in a web browser and complete the standard JIRA setup steps
+
+It may take some time to complete loading, since JIRA creates the database and file objects the first time it is used.
+
 
 # Notes on Costs
 
@@ -87,29 +98,28 @@ Build and push the docker image
 * Teamcity
 * JIRA email notifications
 * Download Server
-* Remove NAT Gateways for cost-savings
-* Networking: Configure Client VPN access
+* Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
+* Investigate autoscaling of build servers, use of docker
+* Perform CloudFront invalidation on deployment
+* Merge cfn-ecr template with service template
+* Security: Narrow all roles/permissions
+* Security: Secure database credentials
+* Security: Setup database connection information in parameters, or use a dns name to access it
 * Networking: ECS tasks should use **awsvpc** networking mode. See https://aws.amazon.com/blogs/compute/introducing-cloud-native-networking-for-ecs-containers/
+* Networking: Remove NAT Gateways for cost-savings
+* Networking Attempt to keep ECS hosts in the same region as the active RDS host
+* Networking: Configure Client VPN access
 * Networking: Change EFS to use security group from service, instead of ECS Security Group
 * Networking: Use a different CIDR range in private subnet from public subnet
 * Networking: Optimize subnets to be minimum possible size
-* Networking: Move from ALB to NLB, using a different port per service
-* Optimize instance types for ECS and RDS
-* Configure CPU limits on tasks, such that no task can consume an unfair share of the hosts resources
-* Narrow all roles/permissions
-* Attempt to keep ECS hosts in the same region as the active RDS host
-* Secure database credentials
-* Setup database connection information in parameters, or use a dns name to access it
-* Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
-* Investigate autoscaling of build servers, use of docker
-* Fix collation for JIRA database
-* Perform CloudFront invalidation on deployment
-* EFS performance optimization: investigate local caching
+* Networking: Move from ALB to NLB, using a different port per service	   
+* Performance: Configure CPU limits on tasks, such that no task can consume an unfair share of the hosts resources
+* Performance: Optimize instance types for ECS and RDS
+* Performance: Investigate using separate EFS shares for various sub-directories of application, to optimize use of bursting
+* Performance: EFS performance optimization: investigate local caching
     * https://investigate if we can separate where indexes are stored, compared to other data
     * https://rwmj.wordpress.com/2014/05/22/using-lvms-new-cache-feature/
     * https://www.cyberciti.biz/faq/centos-redhat-install-configure-cachefilesd-for-nfs/
-	   
-
 
 
 

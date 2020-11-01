@@ -1,0 +1,25 @@
+FROM atlassian/jira-software:8.13.0
+
+# Install mysql driver, used by JIRA
+ENV MYSQL_CONNECTOR_VERSION=mysql-connector-java-8.0.22
+RUN curl -LJO https://dev.mysql.com/get/Downloads/Connector-J/${MYSQL_CONNECTOR_VERSION}.tar.gz &&\
+    gunzip ${MYSQL_CONNECTOR_VERSION}.tar.gz &&\
+    tar -xvf ${MYSQL_CONNECTOR_VERSION}.tar &&\
+    rm *.tar &&\
+    cp ${MYSQL_CONNECTOR_VERSION}/mysql-*.jar /opt/atlassian/jira/lib/ &&\
+    rm -rf mysql-*/
+
+# Install JDK 11 & mysql client
+RUN apt-get update &&\
+    # Install mysql client, used for initialization
+    apt-get install -y mysql-client &&\
+    apt-get install -y openjdk-11-jdk-headless &&\
+    rm -rf /var/lib/apt/lists/* &&\
+    # Set environment
+    echo JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 >> /root/.bashrc &&\
+    echo PATH=/usr/lib/jvm/java-11-openjdk-amd64/bin:$PATH >> /root/.bashrc &&\
+    update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java &&\
+    echo JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 > /etc/environment &&\
+    echo PATH=/usr/lib/jvm/java-11-openjdk-amd64/bin:$PATH >> /etc/environment &&\
+    # cleanup old java version
+    rm -rf /opt/java
