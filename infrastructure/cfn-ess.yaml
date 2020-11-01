@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+
+  EnvironmentName:
+    Type: String
+  ElasticsearchVersion:
+    Type: String
+    Default: 7.8
+  InstanceType:
+    Type: String
+    Default: r5.large.elasticsearch
+  InstanceCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+  Subnets:
+    Description: Choose which subnets this ECS cluster should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+  VolumeSize:
+    Description: EBS Volume Size in GB
+    Type: Number
+    Default: 100
+  VPC:
+    Description: Choose which VPC this ECS cluster should be deployed to
+    Type: AWS::EC2::VPC::Id
+
+Resources:
+
+  ES:
+    Type: AWS::Elasticsearch::Domain
+    UpdatePolicy:
+      EnableVersionUpgrade: true
+    Properties:
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: [ es:ESHttp* ]
+            Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${EnvironmentName}/*
+      DomainName: !Ref EnvironmentName
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: !Ref VolumeSize
+        VolumeType: gp2
+      ElasticsearchClusterConfig:
+        InstanceCount: !Ref InstanceCount
+        InstanceType: !Ref InstanceType
+        #ZoneAwarenessConfig:
+        #  AvailabilityZoneCount: !Ref InstanceCount
+        #ZoneAwarenessEnabled: true
+      ElasticsearchVersion: !Ref ElasticsearchVersion
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 23
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+      VPCOptions:
+        SubnetIds: [ !Select [ 0, !Ref Subnets ] ]
+        SecurityGroupIds: [ !Ref SecurityGroup ]
+
+      #AccessPolicies:
+      #  Version: 2012-10-17
+      #  Statement:
+      #    - Effect: Deny
+      #      Principal:
+      #        AWS: '*'
+      #      Action: 'es:*'
+      #      Resource: '*'
+      #AdvancedOptions:
+      #        rest.action.multi.allow_explicit_index: 'true'
+      #AdvancedSecurityOptions
+      #CognitoOptions
+      #DomainEndpointOptions
+      #  EnforceHTTPS: true
+      #  DedicatedMasterCount: Integer
+      #  DedicatedMasterEnabled: Boolean
+      #  DedicatedMasterType: String
+      #  WarmCount: Integer
+      #  WarmEnabled: Boolean
+      #  WarmType: String
+      #  ZoneAwarenessConfig:
+      #    ZoneAwarenessConfig
+      #EncryptionAtRestOptions:
+      #LogPublishingOptions:
+      #  SEARCH_SLOW_LOGS:
+      #    CloudWatchLogsLogGroupArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/aes/domains/es-slow-logs
+      #    Enabled: true
+      #  INDEX_SLOW_LOGS:
+      #    CloudWatchLogsLogGroupArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/aes/domains/es-index-slow-logs
+      #    Enabled: true
+      # NodeToNodeEncryptionOptions
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref EnvironmentName
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+      VpcId: !Ref VPC

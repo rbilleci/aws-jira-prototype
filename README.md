@@ -27,12 +27,18 @@ For **CFN_STACK**, enter the AWS CloudFormation stack name you want to use for t
 
 #### Step 4 - Deploy the VPC, ECS, and RDS infrastructure 
 
-In the same terminal session, run the following commands. 
-The **package** command packages up the template files and uploads dependencies to S3
-The **deploy** command deploys the AWS CloudFormation stack.
+In the same terminal session, run the following commands.
+
+Create a service linked role for Elasticsearch:
+
+    aws iam create-service-linked-role --aws-service-name es.amazonaws.com
+
+Then create the infrastructure:
 
     aws cloudformation package --template-file cfn.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
     aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}
+
+The **package** command packages up the template files and uploads dependencies to S3. The **deploy** command deploys the AWS CloudFormation stack.
 
 #### Step 5 - Create the databases for the application
 
@@ -81,8 +87,10 @@ It may take some time to complete loading, since JIRA creates the database and f
 
 # Notes on Costs
 
+* See: https://calculator.aws/#/estimate?id=d9dbfa791aaa8e9bdb31896378661e8407229c31
 * EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned throughput of 10 MB/s
 * RDS (single vs multi-az)
+* Elasticsearch (instance type, single node vs multi-az, SLA requirements)
 * NAT Gateways
 * ALB
 * Option: Route53 for load balancing from CloudFront to Services
@@ -91,12 +99,12 @@ It may take some time to complete loading, since JIRA creates the database and f
 
 # Open Tasks
 
-* Elasticsearch
 * Upsource
 * Media Wiki
 * Git Integration
 * Teamcity
 * JIRA email notifications
+* Configure Elasticsearch Service Linked Role as CloudFormation resource
 * Download Server
 * Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 * Investigate autoscaling of build servers, use of docker
