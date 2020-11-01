@@ -22,6 +22,7 @@ Resources:
         MaxSize: 3
         EnvironmentName: !Ref AWS::StackName
         InstanceType: r5a.xlarge
+        RDSEndpointAddress: !GetAtt RDS.Outputs.EndpointAddress
         RDSSecurityGroup: !GetAtt RDS.Outputs.SecurityGroup
         PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
         VPC: !GetAtt VPC.Outputs.VPC

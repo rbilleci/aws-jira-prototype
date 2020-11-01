@@ -5,9 +5,12 @@ For deploying the infrastructure, you will need to create an Amazon S3 Bucket.
 AWS CloudFormation stores templates in the bucket. 
 After creating the bucket, take note of it for the next steps.
 
-#### Step 2 - Install the AWS CLI in your Local Environment
+#### Step 2 - Install pre-requisites
 
-Install the AWS Command Line Interface: https://aws.amazon.com/cli/
+The following pre-requisites must be installed:
+ 
+* Install Docker
+* Install the AWS Command Line Interface: https://aws.amazon.com/cli/
 
 Run **aws configure** and setup the right region and access keys
 
@@ -40,10 +43,12 @@ Perform the following steps:
 2. Navigate to the EC2 Service
 3. Select **Instances**
 4. Select the checkbox next to the EC2 instance created by ECS.
-5. Click on **Connect** and select to open a terminal session using the AWS Systems Manager
-6. Once you are logged into the EC2 instance, run the following commands:
+5. Click on **Connect** and select to open a terminal session using the **Session Manager**
+6. Once you are logged into the EC2 instance, run the following commands,
+ making sure to replace **USER** and **PASSWORD** with your MySQL user:
 
-
+        sudo su ec-2user
+        mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p <PASSWORD> -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
 
 #### Step 6 - Build and Deploy JIRA
 
@@ -94,6 +99,7 @@ Build and push the docker image
 * Narrow all roles/permissions
 * Attempt to keep ECS hosts in the same region as the active RDS host
 * Secure database credentials
+* Setup database connection information in parameters, or use a dns name to access it
 * Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 * Investigate autoscaling of build servers, use of docker
 * Fix collation for JIRA database

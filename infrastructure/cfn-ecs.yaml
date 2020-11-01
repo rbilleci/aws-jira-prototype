@@ -38,6 +38,10 @@ Parameters:
     Description: Choose which subnets this ECS cluster should be deployed to
     Type: List<AWS::EC2::Subnet::Id>
 
+  RDSEndpointAddress:
+    Description: Endpoint address for RDS instance
+    Type: String
+
   RDSSecurityGroup:
     Description: Select the Security Group to use for the RDS
     Type: AWS::EC2::SecurityGroup::Id
@@ -94,6 +98,8 @@ Resources:
           Fn::Base64: !Sub |
             #!/bin/bash
             echo ECS_CLUSTER=${EnvironmentName} >> /etc/ecs/ecs.config
+            echo export RDS_ENDPOINT_ADDRESS=${RDSEndpointAddress} >> /home/ssm-user/.bashrc
+            echo export RDS_ENDPOINT_ADDRESS=${RDSEndpointAddress} >> /home/ec2-user/.bashrc
             yum update -y
             yum install -y aws-cfn-bootstrap
             yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
