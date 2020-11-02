@@ -89,14 +89,23 @@ It may take some time to complete loading, since JIRA creates the database and f
 
 All deployment options have the following:
 
-
-* EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned throughput of 10 MB/s
 * Client VPN with 10 users - 40 hours per week per user
-* NAT Gateways (3)
-* ALB (3-AZs)
 * Monthly data transfer of 100 GB outbound and 100 GB inter-region
 * ECS for application deployment, 1x r5a.xlarge (32 GB) 
+* Elasticsearch Service uses instances with 64 GB of memory.
+* EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned throughput of 10 MB/s
+* NAT Gateways (3)
+* ALB (3-AZs)
+* Team City Server included, but build agents are not
 
+ECS Servers sized for the following:
+
+* 4 GB - JIRA
+* 4 GB - TeamCity (Tenant 1)
+* 4 GB - TeamCity (Tenant 2)
+* 8 GB - Upsource 
+* 1 GB - MediaWiki
+* 10 BG - reserved for other applications
 
 #### Non-HA deployment with RDS and Elasticsearch using a single AZ
     
@@ -108,6 +117,7 @@ Costs with reserved instances: https://calculator.aws/#/estimate?id=6d9550cd8c27
 Costs: https://calculator.aws/#/estimate?id=b6f83236d766780156ca7d65a9a0c55d5cf92348
 Costs with reserved instances and using smaller ES instances since we have 3 running: https://calculator.aws/#/estimate?id=327859c4daa72b73c1875995b139ae1cea610cc5
 
+
 #### Cost Reduction Options:
 
 Based on the following: https://calculator.aws/#/estimate?id=66eaee38f44855524ec49af39e3f0397f25f0cde
@@ -116,18 +126,20 @@ Based on the following: https://calculator.aws/#/estimate?id=66eaee38f44855524ec
 * Use Reserved Instance Pricing
 * Remove ALB - save costs by routing from CloudFront directly to ECS instances
 * Remove NAT Gateways - use VPC Endpoints
-* Evaluate using lower-memory instance types for Amazon Elasticsearch Service
+
+Evaluate using lower-memory instance types for Amazon Elasticsearch Service
+
 
 # Open Tasks
 
+* JIRA email configuration
+* Configure Elasticsearch Service Linked Role as CloudFormation resource
+* Accessibility of ES
 * Upsource
 * Media Wiki
 * Git Integration
 * Teamcity
-* JIRA email notifications
-* Configure Elasticsearch Service Linked Role as CloudFormation resource
 * Download Server
-* Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 * Investigate autoscaling of build servers, use of docker
 * Perform CloudFront invalidation on deployment
 * Merge cfn-ecr template with service template
@@ -149,6 +161,7 @@ Based on the following: https://calculator.aws/#/estimate?id=66eaee38f44855524ec
     * https://investigate if we can separate where indexes are stored, compared to other data
     * https://rwmj.wordpress.com/2014/05/22/using-lvms-new-cache-feature/
     * https://www.cyberciti.biz/faq/centos-redhat-install-configure-cachefilesd-for-nfs/
+* Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 
 
 
