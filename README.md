@@ -63,6 +63,7 @@ Perform the following steps:
 
         sudo su ec-2user
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p <PASSWORD> -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+7. You can now close the Session Manager session. All deployment following deployment steps will be run from the terminal of your local machine.
 
 #### Step 6 - Build and Deploy JIRA
 
