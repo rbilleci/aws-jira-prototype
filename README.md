@@ -1,4 +1,12 @@
 
+# Overview
+
+An example of deploying a JIRA and Elasticsearch environment on AWS
+
+# Deployment
+
+Deployment presently requires some manual steps.
+
 #### Step 1 - Create a Bucket
 
 For deploying the infrastructure, you will need to create an Amazon S3 Bucket. 
