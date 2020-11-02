@@ -87,15 +87,36 @@ It may take some time to complete loading, since JIRA creates the database and f
 
 # Notes on Costs
 
-* See: https://calculator.aws/#/estimate?id=d9dbfa791aaa8e9bdb31896378661e8407229c31
+All deployment options have the following:
+
+
 * EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned throughput of 10 MB/s
-* RDS (single vs multi-az)
-* Elasticsearch (instance type, single node vs multi-az, SLA requirements)
-* NAT Gateways
-* ALB
-* Option: Route53 for load balancing from CloudFront to Services
-* File transfer (lambda, aws transfer, aws batch)
-* site-to-site VPN
+* Client VPN with 10 users - 40 hours per week per user
+* NAT Gateways (3)
+* ALB (3-AZs)
+* Monthly data transfer of 100 GB outbound and 100 GB inter-region
+* ECS for application deployment, 1x r5a.xlarge (32 GB) 
+
+
+#### Non-HA deployment with RDS and Elasticsearch using a single AZ
+    
+Costs: https://calculator.aws/#/estimate?id=abe514b2eae49e058415c3c725fe1de5a4753b4b
+Costs with reserved instances: https://calculator.aws/#/estimate?id=6d9550cd8c272eed76803331973e368382eac80a
+
+#### HA-deployment with Multi-AZ RDS and Elasticsearch across 3 AZs
+
+Costs: https://calculator.aws/#/estimate?id=b6f83236d766780156ca7d65a9a0c55d5cf92348
+Costs with reserved instances and using smaller ES instances since we have 3 running: https://calculator.aws/#/estimate?id=327859c4daa72b73c1875995b139ae1cea610cc5
+
+#### Cost Reduction Options:
+
+Based on the following: https://calculator.aws/#/estimate?id=66eaee38f44855524ec49af39e3f0397f25f0cde
+
+* Non HA
+* Use Reserved Instance Pricing
+* Remove ALB - save costs by routing from CloudFront directly to ECS instances
+* Remove NAT Gateways - use VPC Endpoints
+* Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 
 # Open Tasks
 
