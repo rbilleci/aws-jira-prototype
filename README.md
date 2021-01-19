@@ -63,6 +63,8 @@ Perform the following steps:
 
         sudo su ec2-user
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+        mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+        
 7. You can now close the Session Manager session. All deployment following deployment steps will be run from the terminal of your local machine.
 
 #### Step 6 - Build and Deploy JIRA
@@ -83,7 +85,26 @@ Build and push the docker image
     aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
     aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
     cd ...
+    
+#### Step 7 - Build and Deploy TeamCity    
+    
+Set the environment
+    
+    CFN_SERVICE=teamcity
 
+Build and push the docker image
+    
+    aws cloudformation deploy --template-file components/cfn-ecr.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE}-ecr --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
+    cd services/${CFN_SERVICE}    
+    docker build -t ${CFN_SERVICE} .    
+    CFN_TAG=$(docker images ${CFN_SERVICE} -q)
+    aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
+    docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
+    docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
+    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
+    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
+    cd ...
+    
 You can now login to JIRA and complete the setup steps.
 
 1. Login to the AWS Management Console 
