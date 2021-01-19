@@ -21,7 +21,7 @@ Resources:
         MinSize: 1
         MaxSize: 3
         EnvironmentName: !Ref AWS::StackName
-        InstanceType: t3.xlarge	#r5a.xlarge
+        InstanceType: t3.xlarge
         RDSEndpointAddress: !GetAtt RDS.Outputs.EndpointAddress
         RDSSecurityGroup: !GetAtt RDS.Outputs.SecurityGroup
         PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
@@ -33,7 +33,7 @@ Resources:
       TemplateURL: infrastructure/cfn-rds.yaml
       Parameters:
         EnvironmentName: !Ref AWS::StackName
-        InstanceType: db.t3.small #db.m6g.large
+        InstanceType: db.t3.small
         MultiAZ: false
         PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
         Username: root
@@ -47,7 +47,7 @@ Resources:
       Parameters:
         EnvironmentName: !Ref AWS::StackName
         ElasticsearchVersion: 7.8
-        InstanceType: t3.small.elasticsearch # r5.large.elasticsearch
+        InstanceType: t3.small.elasticsearch
         InstanceCount: 1
         Subnets: !GetAtt VPC.Outputs.PublicSubnets
         VolumeSize: 100
