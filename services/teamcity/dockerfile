@@ -2,11 +2,13 @@ FROM jetbrains/teamcity-server
 
 ENV MYSQL_CONNECTOR_VERSION=mysql-connector-java-8.0.22
 
+WORKDIR /tmp
+
 RUN curl -LJO https://dev.mysql.com/get/Downloads/Connector-J/${MYSQL_CONNECTOR_VERSION}.tar.gz &&\
     gunzip ${MYSQL_CONNECTOR_VERSION}.tar.gz &&\
     tar -xvf ${MYSQL_CONNECTOR_VERSION}.tar &&\
-    rm *.tar &&\
     cp ${MYSQL_CONNECTOR_VERSION}/mysql-*.jar /opt/teamcity/webapps/ROOT/WEB-INF/lib &&\
+    rm *.tar &&\
     cp ${MYSQL_CONNECTOR_VERSION}/mysql-*.jar /opt/teamcity/webapps/ROOT/WEB-INF/lib/jdbc &&\
     rm -rf mysql-*/
 
