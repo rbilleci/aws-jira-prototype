@@ -37,7 +37,7 @@ Resources:
           - Effect: Allow
             Principal:
               AWS: '*'
-            Action: [ es:ESHttp* ]
+            Action: [ "es:ESHttp*" ]
             Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${EnvironmentName}/*
       DomainName: !Ref EnvironmentName
       EBSOptions:
