@@ -248,7 +248,7 @@ Resources:
       Path: /
       AssumeRolePolicyDocument:
         Statement:
-          - Action: [ sts:AssumeRole ]
+          - Action: [ "sts:AssumeRole" ]
             Effect: Allow
             Principal:
               Service: [ ecs.amazonaws.com ]
@@ -276,7 +276,7 @@ Resources:
       RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSTaskExecutionRole-${AWS::Region}
       AssumeRolePolicyDocument:
         Statement:
-          Action: [ sts:AssumeRole ]
+          Action: [ "sts:AssumeRole" ]
           Effect: Allow
           Principal:
             Service: [ ecs-tasks.amazonaws.com ]
@@ -290,7 +290,7 @@ Resources:
       RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSTaskRole-${AWS::Region}
       AssumeRolePolicyDocument:
         Statement:
-          Action: [ sts:AssumeRole ]
+          Action: [ "sts:AssumeRole" ]
           Effect: Allow
           Principal:
             Service: [ ecs-tasks.amazonaws.com ]
