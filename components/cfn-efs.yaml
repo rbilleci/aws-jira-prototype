@@ -28,7 +28,7 @@ Resources:
       Encrypted: true
       FileSystemPolicy:
         Statement:
-          - Action: [ elasticfilesystem:ClientMount ]
+          - Action: [ "elasticfilesystem:ClientMount" ]
             Effect: Allow
             Principal:
               AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
