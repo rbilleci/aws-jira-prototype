@@ -1,24 +1,6 @@
-#see https://hub.docker.com/r/jetbrains/teamcity-server/
-#see https://hub.docker.com/r/jetbrains/teamcity-agent/
-# team city agents
-
-
 AWSTemplateFormatVersion: 2010-09-09
-Description: >
-  This is an example of a long running ECS service that serves a JSON API of products.
+Description: Team City
 Parameters:
-
-  RDSUsername:
-    Description: Username for database
-    Type: String
-    Default: root
-    NoEcho: true
-
-  RDSPassword:
-    Description: Password for database
-    Type: String
-    Default: password
-    NoEcho: true
 
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
