@@ -86,7 +86,16 @@ Build and push the docker image
     aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
     cd ...
     
-#### Step 7 - Build and Deploy TeamCity    
+You can now login to JIRA and complete the setup steps.
+
+1. Login to the AWS Management Console 
+2. Navigate to CloudFront
+3. Get the URL of the distribution
+4. Go to the distribution in a web browser and complete the standard JIRA setup steps
+
+It may take some time to complete loading, since JIRA creates the database and file objects the first time it is used.
+
+#### Step 7 - Build and Deploy TeamCity     
     
 Set the environment
     
@@ -104,15 +113,33 @@ Build and push the docker image
     aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
     aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
     cd ...
+
+#### Step 8 - Deploy Upsource    
+
+Set the environment
     
-You can now login to JIRA and complete the setup steps.
+    CFN_SERVICE=upsource
 
-1. Login to the AWS Management Console 
-2. Navigate to CloudFront
-3. Get the URL of the distribution
-4. Go to the distribution in a web browser and complete the standard JIRA setup steps
+Package and deploy the cloudformation template:
+    
+    cd services/${CFN_SERVICE}    
+    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
+    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
+    cd ...
 
-It may take some time to complete loading, since JIRA creates the database and file objects the first time it is used.
+To complete the installation of Upsource, you'll need to get the Wizard Token output into the log
+files. After the deployment is complete, access the AWS CloudWatch logs for Upsource. 
+You'll need to find the installation token in the logs. It looks something like:
+
+    * JetBrains Upsource 2020.1 Configuration Wizard will listen inside container on 
+    {0.0.0.0:8080}/ after start and can be accessed by URL 
+    [http://<put-your-docker-HOST-name-here>:<put-host-port-mapped-to-container-port-8080-here>
+    /?wizard_token=hOsFEoWcjl41iLAGHKwa] 
+
+Copy the wizard token, then access Upsource over the CloudFront URL, as an example: https://dblh7quq8h4ke.cloudfront.net. 
+You'll see the Upsource install wizard and can complete the process.
+
+
 
 
 # Notes on Costs
@@ -165,10 +192,8 @@ Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 * JIRA email configuration
 * Configure Elasticsearch Service Linked Role as CloudFormation resource
 * Accessibility of ES
-* Upsource
 * Media Wiki
 * Git Integration
-* Teamcity
 * Download Server
 * Investigate autoscaling of build servers, use of docker
 * Perform CloudFront invalidation on deployment
@@ -179,18 +204,12 @@ Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 * Networking: ECS tasks should use **awsvpc** networking mode. See https://aws.amazon.com/blogs/compute/introducing-cloud-native-networking-for-ecs-containers/
 * Networking: Remove NAT Gateways for cost-savings
 * Networking Attempt to keep ECS hosts in the same region as the active RDS host
-* Networking: Configure Client VPN access
 * Networking: Change EFS to use security group from service, instead of ECS Security Group
 * Networking: Use a different CIDR range in private subnet from public subnet
 * Networking: Optimize subnets to be minimum possible size
 * Networking: Move from ALB to NLB, using a different port per service	   
 * Performance: Configure CPU limits on tasks, such that no task can consume an unfair share of the hosts resources
 * Performance: Optimize instance types for ECS and RDS
-* Performance: Investigate using separate EFS shares for various sub-directories of application, to optimize use of bursting
-* Performance: EFS performance optimization: investigate local caching
-    * https://investigate if we can separate where indexes are stored, compared to other data
-    * https://rwmj.wordpress.com/2014/05/22/using-lvms-new-cache-feature/
-    * https://www.cyberciti.biz/faq/centos-redhat-install-configure-cachefilesd-for-nfs/
 * Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 
 
