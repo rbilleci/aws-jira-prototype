@@ -237,6 +237,14 @@ Resources:
             Service: [ ecs-tasks.amazonaws.com ]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: !Sub ${EnvironmentName}-${ServiceName}
+          PolicyDocument:
+            Statement:
+              - Action: [ secretsmanager:GetSecretValue, secretsmanager:DescribeSecret, kms:Decrypt ]
+                Effect: Allow
+                Resource: "*"
+
 
   TaskRole:
     Type: AWS::IAM::Role
