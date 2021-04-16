@@ -1,24 +1,6 @@
-#see https://hub.docker.com/r/jetbrains/teamcity-server/
-#see https://hub.docker.com/r/jetbrains/teamcity-agent/
-# team city agents
-
-
 AWSTemplateFormatVersion: 2010-09-09
-Description: >
-  This is an example of a long running ECS service that serves a JSON API of products.
+Description: Team City
 Parameters:
-
-  RDSUsername:
-    Description: Username for database
-    Type: String
-    Default: root
-    NoEcho: true
-
-  RDSPassword:
-    Description: Password for database
-    Type: String
-    Default: password
-    NoEcho: true
 
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
@@ -159,7 +141,7 @@ Resources:
           Memory: 3768
           MountPoints:
             - SourceVolume: efs
-              ContainerPath: /var/efs
+              ContainerPath: /data/teamcity_server/datadir
           Name: !Sub ${EnvironmentName}-${ServiceName}
           PortMappings:
             - ContainerPort: 8111
@@ -255,6 +237,14 @@ Resources:
             Service: [ ecs-tasks.amazonaws.com ]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: !Sub ${EnvironmentName}-${ServiceName}
+          PolicyDocument:
+            Statement:
+              - Action: [ secretsmanager:GetSecretValue, secretsmanager:DescribeSecret, kms:Decrypt ]
+                Effect: Allow
+                Resource: "*"
+
 
   TaskRole:
     Type: AWS::IAM::Role

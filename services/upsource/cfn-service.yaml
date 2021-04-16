@@ -1,18 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: JIRA Service
+Description: Upsource
 Parameters:
-
-  RDSUsername:
-    Description: Username for database
-    Type: String
-    Default: root
-    NoEcho: true
-
-  RDSPassword:
-    Description: Password for database
-    Type: String
-    Default: password
-    NoEcho: true
 
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
@@ -21,7 +9,12 @@ Parameters:
   ServiceName:
     Description: Name of the Service
     Type: String
-    Default: jira
+    Default: upsource
+
+  Image:
+    Description: Docker Image for Upsource
+    Type: String
+    Default: "jetbrains/upsource:2020.1.1802"
 
 Resources:
 
@@ -30,23 +23,23 @@ Resources:
     Properties:
       DistributionConfig:
         CacheBehaviors:
-          # Static Content
+          # assets
           - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
             CachedMethods: [ GET, HEAD, OPTIONS ]
             CachePolicyId: !Ref CloudFrontStaticContentPolicy
             Compress: true
             OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
-            PathPattern: "/s/*"
+            PathPattern: "*/assets/*"
             SmoothStreaming: false
             TargetOriginId: !Ref ServiceName
             ViewerProtocolPolicy: redirect-to-https
-            # Images
+          # frontend
           - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
             CachedMethods: [ GET, HEAD, OPTIONS ]
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # cache optimized
+            CachePolicyId: !Ref CloudFrontStaticContentPolicy
             Compress: true
             OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
-            PathPattern: "/images/*"
+            PathPattern: "*/frontend/*"
             SmoothStreaming: false
             TargetOriginId: !Ref ServiceName
             ViewerProtocolPolicy: redirect-to-https
@@ -104,7 +97,7 @@ Resources:
       ListenerArn:
         Fn::ImportValue:
           !Sub ${EnvironmentName}-listener
-      Priority: 10
+      Priority: 20
       Conditions:
         - Field: host-header
           Values: [ !GetAtt CloudFront.DomainName ]
@@ -119,7 +112,7 @@ Resources:
       Cluster:
         Fn::ImportValue:
           !Sub ${EnvironmentName}-ecs-cluster
-      DeploymentConfiguration: # Note, we may have only 1 JIRA instance running, as the filesystem is shared
+      DeploymentConfiguration:
         MaximumPercent: 100
         MinimumHealthyPercent: 0
       DesiredCount: 1
@@ -137,69 +130,51 @@ Resources:
     Properties:
       ExecutionRoleArn: !Ref TaskExecutionRole
       TaskRoleArn: !Ref TaskRole
-      #NetworkMode: awsvpc
       ContainerDefinitions:
-        - Environment:
-            # File
-            - Name: JIRA_HOME
-              Value: /var/efs
-            # JVM Settings
-            - Name: JVM_MINIMUM_MEMORY
-              Value: 3072m
-            - Name: JVM_MAXIMUM_MEMORY
-              Value: 3072m
-            - Name: JVM_RESERVED_CODE_CACHE_SIZE
-              Value: 512m
-            # Reverse Proxy Settings
-            - Name: ATL_PROXY_NAME
-              Value: !GetAtt CloudFront.DomainName
-            - Name: ATL_PROXY_PORT
-              Value: 443
-            - Name: ATL_TOMCAT_SCHEME
-              Value: https
-            # Database Settings
-            - Name: ATL_JDBC_URL
-              Value:
-                !Join
-                - ''
-                - - 'jdbc:mysql://'
-                  - Fn::ImportValue:
-                      !Sub ${EnvironmentName}-rds-endpoint-address
-                  - ':3306/jira'
-            - Name: ATL_JDBC_USER
-              Value: !Ref RDSUsername
-            - Name: ATL_JDBC_PASSWORD
-              Value: !Ref RDSPassword
-            - Name: ATL_DB_DRIVER
-              Value: com.mysql.jdbc.Driver
-            - Name: ATL_DB_TYPE
-              Value: mysql
-            - Name: ATL_DB_SCHEMA_NAME
-              Value: ''
-          Essential: true
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
+        - Essential: true
+          Image: !Ref Image
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
-          Memory: 3840 # reserve just under 4 GB, for some buffer
+          Memory: 8192
           MountPoints:
-            - SourceVolume: efs
-              ContainerPath: /var/efs
+            - SourceVolume: efs-data
+              ContainerPath: /opt/upsource/data
+            - SourceVolume: efs-conf
+              ContainerPath: /opt/upsource/conf
+            - SourceVolume: efs-backups
+              ContainerPath: /opt/upsource/backups
           Name: !Sub ${EnvironmentName}-${ServiceName}
           PortMappings:
             - ContainerPort: 8080
-          # TODO: HealthCheck
       Family: !Sub ${EnvironmentName}-${ServiceName}
       Volumes:
         - EFSVolumeConfiguration:
             AuthorizationConfig:
               IAM: ENABLED
+              AccessPointId: !GetAtt EFSDataAccessPoint.AccessPointId
             FilesystemId: !GetAtt EFS.Outputs.ID
             RootDirectory: /
             TransitEncryption: ENABLED
-          Name: efs
+          Name: efs-data
+        - EFSVolumeConfiguration:
+            AuthorizationConfig:
+              IAM: ENABLED
+              AccessPointId: !GetAtt EFSConfAccessPoint.AccessPointId
+            FilesystemId: !GetAtt EFS.Outputs.ID
+            RootDirectory: /
+            TransitEncryption: ENABLED
+          Name: efs-conf
+        - EFSVolumeConfiguration:
+            AuthorizationConfig:
+              IAM: ENABLED
+              AccessPointId: !GetAtt EFSBackupsAccessPoint.AccessPointId
+            FilesystemId: !GetAtt EFS.Outputs.ID
+            RootDirectory: /
+            TransitEncryption: ENABLED
+          Name: efs-backups
 
   EFS:
     Type: AWS::CloudFormation::Stack
@@ -217,6 +192,39 @@ Resources:
           Fn::ImportValue:
             !Sub ${EnvironmentName}-vpc
 
+  EFSDataAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "13001"
+          OwnerUid: "13001"
+          Permissions: "750"
+        Path: /data
+
+  EFSConfAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "13001"
+          OwnerUid: "13001"
+          Permissions: "750"
+        Path: /conf
+
+  EFSBackupsAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "13001"
+          OwnerUid: "13001"
+          Permissions: "750"
+        Path: /backups
+
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -227,12 +235,12 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /status
+      HealthCheckPath: /
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       Matcher:
-        HttpCode: 200-299
+        HttpCode: 200-302
       Port: 80
       Protocol: HTTP
       TargetType: instance
@@ -248,7 +256,7 @@ Resources:
       Path: /
       AssumeRolePolicyDocument:
         Statement:
-          - Action: [ "sts:AssumeRole" ]
+          - Action: [ sts:AssumeRole ]
             Effect: Allow
             Principal:
               Service: [ ecs.amazonaws.com ]
@@ -276,8 +284,8 @@ Resources:
       RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSTaskExecutionRole-${AWS::Region}
       AssumeRolePolicyDocument:
         Statement:
-          Action: [ "sts:AssumeRole" ]
           Effect: Allow
+          Action: [ sts:AssumeRole ]
           Principal:
             Service: [ ecs-tasks.amazonaws.com ]
       ManagedPolicyArns:
@@ -290,7 +298,6 @@ Resources:
                 Effect: Allow
                 Resource: "*"
 
-
   TaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -298,9 +305,9 @@ Resources:
       RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSTaskRole-${AWS::Region}
       AssumeRolePolicyDocument:
         Statement:
-          Action: [ "sts:AssumeRole" ]
+          Action: [ sts:AssumeRole ]
           Effect: Allow
           Principal:
             Service: [ ecs-tasks.amazonaws.com ]
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess # TODO: narrow permissions for EFS access
+        - arn:aws:iam::aws:policy/AdministratorAccess
