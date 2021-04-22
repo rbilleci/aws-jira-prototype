@@ -1,5 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
 Description: Upsource
+
 Parameters:
 
   EnvironmentName:
@@ -10,11 +12,6 @@ Parameters:
     Description: Name of the Service
     Type: String
     Default: upsource
-
-  Image:
-    Description: Docker Image for Upsource
-    Type: String
-    Default: "jetbrains/upsource:2020.1.1802"
 
 Resources:
 
@@ -62,11 +59,9 @@ Resources:
               HTTPPort: 80
               HTTPSPort: 443
               OriginKeepaliveTimeout: 30
-              OriginProtocolPolicy: http-only
+              OriginProtocolPolicy: https-only
               OriginReadTimeout: 60
-            DomainName:
-              Fn::ImportValue:
-                !Sub ${EnvironmentName}-load-balancer-dns-name
+            DomainName: !GetAtt NLB.DNSName
             Id: !Ref ServiceName
         PriceClass: PriceClass_All
       Tags:
@@ -91,23 +86,80 @@ Resources:
           QueryStringsConfig:
             QueryStringBehavior: all
 
-  CloudFrontListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  NLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      ListenerArn:
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: true
+      Name: !Sub ${EnvironmentName}-${ServiceName}-nlb
+      Subnets: !Split
+        - ","
+        - Fn::ImportValue:
+            !Sub ${EnvironmentName}-public-subnets
+      Type: network
+
+  #  Listener:
+  #    Type: AWS::ElasticLoadBalancingV2::Listener
+  #    Properties:
+  #      LoadBalancerArn: !Ref NLB
+  #      Port: 80
+  #      Protocol: TCP
+  #      DefaultActions:
+  #        - Type: forward
+  #          TargetGroupArn: !Ref TargetGroup
+
+  ListenerTLS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref NLB
+      Port: 443
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupTLS
+
+  #  TargetGroup:
+  #    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  #    Properties:
+  #      HealthCheckIntervalSeconds: 10
+  #      HealthCheckPath: /
+  #      HealthCheckProtocol: HTTP
+  #      #HealthCheckTimeoutSeconds: 5
+  #      HealthyThresholdCount: 3
+  #      #Matcher:
+  #      #  HttpCode: 200-302
+  #      Port: 80
+  #      Protocol: TCP
+  #      #ProtocolVersion: HTTP2
+  #      TargetType: ip
+  #      UnhealthyThresholdCount: 3
+  #      VpcId:
+  #        Fn::ImportValue:
+  #          !Sub ${EnvironmentName}-vpc
+
+  TargetGroupTLS:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTPS
+      #HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      #Matcher:
+      #  HttpCode: 200-302
+      Port: 443
+      Protocol: TCP
+      #ProtocolVersion: HTTP2
+      TargetType: ip
+      UnhealthyThresholdCount: 3
+      VpcId:
         Fn::ImportValue:
-          !Sub ${EnvironmentName}-listener
-      Priority: 20
-      Conditions:
-        - Field: host-header
-          Values: [ !GetAtt CloudFront.DomainName ]
-      Actions:
-        - TargetGroupArn: !Ref TargetGroup
-          Type: forward
+          !Sub ${EnvironmentName}-vpc
 
   Service:
+    DependsOn: ListenerTLS
     Type: AWS::ECS::Service
-    DependsOn: CloudFrontListenerRule
     Properties:
       Cluster:
         Fn::ImportValue:
@@ -116,29 +168,40 @@ Resources:
         MaximumPercent: 100
         MinimumHealthyPercent: 0
       DesiredCount: 1
-      HealthCheckGracePeriodSeconds: 300
+      HealthCheckGracePeriodSeconds: 180
       LaunchType: EC2
       LoadBalancers:
+        #        - ContainerName: !Sub ${EnvironmentName}-${ServiceName}
+        #          ContainerPort: 8080
+        #          TargetGroupArn: !Ref  TargetGroup
         - ContainerName: !Sub ${EnvironmentName}-${ServiceName}
-          ContainerPort: 8080
-          TargetGroupArn: !Ref TargetGroup
-      Role: !Ref ServiceRole
+          ContainerPort: 8443
+          TargetGroupArn: !Ref TargetGroupTLS
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: !Split
+            - ","
+            - Fn::ImportValue:
+                !Sub ${EnvironmentName}-ecs-security-group
+          Subnets: !Split
+            - ","
+            - Fn::ImportValue:
+                !Sub ${EnvironmentName}-private-subnets
       TaskDefinition: !Ref TaskDefinition
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      ExecutionRoleArn: !Ref TaskExecutionRole
-      TaskRoleArn: !Ref TaskRole
       ContainerDefinitions:
         - Essential: true
-          Image: !Ref Image
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
-          Memory: 8192
+          Memory: 8064
           MountPoints:
             - SourceVolume: efs-data
               ContainerPath: /opt/upsource/data
@@ -149,7 +212,11 @@ Resources:
           Name: !Sub ${EnvironmentName}-${ServiceName}
           PortMappings:
             - ContainerPort: 8080
+            - ContainerPort: 8443
+      ExecutionRoleArn: !Ref TaskExecutionRole
       Family: !Sub ${EnvironmentName}-${ServiceName}
+      NetworkMode: awsvpc
+      TaskRoleArn: !Ref TaskRole
       Volumes:
         - EFSVolumeConfiguration:
             AuthorizationConfig:
@@ -229,53 +296,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub ${EnvironmentName}-${ServiceName}
-      RetentionInDays: 365
-
-  TargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      Matcher:
-        HttpCode: 200-302
-      Port: 80
-      Protocol: HTTP
-      TargetType: instance
-      UnhealthyThresholdCount: 3
-      VpcId:
-        Fn::ImportValue:
-          !Sub ${EnvironmentName}-vpc
-
-  ServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSServiceRole-${AWS::Region}
-      Path: /
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: [ sts:AssumeRole ]
-            Effect: Allow
-            Principal:
-              Service: [ ecs.amazonaws.com ]
-      Policies:
-        - PolicyName: !Sub ${EnvironmentName}-${ServiceName}
-          PolicyDocument:
-            Statement:
-              - Action:
-                  - ec2:AuthorizeSecurityGroupIngress
-                  - ec2:Describe*
-                  - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
-                  - elasticloadbalancing:Describe*
-                  - elasticloadbalancing:RegisterInstancesWithLoadBalancer
-                  - elasticloadbalancing:DeregisterTargets
-                  - elasticloadbalancing:DescribeTargetGroups
-                  - elasticloadbalancing:DescribeTargetHealth
-                  - elasticloadbalancing:RegisterTargets
-                Effect: Allow
-                Resource: "*"
+      RetentionInDays: 90
 
   TaskExecutionRole:
     Type: AWS::IAM::Role

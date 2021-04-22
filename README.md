@@ -30,8 +30,6 @@ For **CFN_STACK**, enter the AWS CloudFormation stack name you want to use for t
 
     CFN_BUCKET=<YOUR BUCKET NAME>
     CFN_STACK=<YOUR STACK NAME>
-    CFN_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-    CFN_REGION=$(aws configure get region)
 
 #### Step 4 - Deploy the VPC, ECS, and RDS infrastructure 
 
@@ -69,22 +67,9 @@ Perform the following steps:
 
 #### Step 6 - Build and Deploy JIRA
 
-Set the environment
-    
-    CFN_SERVICE=jira
-   
-Build and push the docker image
+Run the following command:
 
-    aws cloudformation deploy --template-file components/cfn-ecr.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE}-ecr --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd services/${CFN_SERVICE}    
-    docker build -t ${CFN_SERVICE} .    
-    CFN_TAG=$(docker images ${CFN_SERVICE} -q)
-    aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
-    docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd ...
+    ./deploy.sh $CFN_STACK $CFN_BUCKET jira
     
 You can now login to JIRA and complete the setup steps.
 
@@ -97,35 +82,15 @@ It may take some time to complete loading, since JIRA creates the database and f
 
 #### Step 7 - Build and Deploy TeamCity     
     
-Set the environment
-    
-    CFN_SERVICE=teamcity
+Run the following command:
 
-Build and push the docker image
-    
-    aws cloudformation deploy --template-file components/cfn-ecr.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE}-ecr --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd services/${CFN_SERVICE}    
-    docker build -t ${CFN_SERVICE} .    
-    CFN_TAG=$(docker images ${CFN_SERVICE} -q)
-    aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
-    docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd ...
+    ./deploy.sh $CFN_STACK $CFN_BUCKET teamcity
 
 #### Step 8 - Deploy Upsource    
 
-Set the environment
+Run the following command:
     
-    CFN_SERVICE=upsource
-
-Package and deploy the cloudformation template:
-    
-    cd services/${CFN_SERVICE}    
-    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd ...
+    ./deploy.sh $CFN_STACK $CFN_BUCKET upsource
 
 To complete the installation of Upsource, you'll need to get the Wizard Token output into the log
 files. After the deployment is complete, access the AWS CloudWatch logs for Upsource. 
@@ -201,16 +166,13 @@ Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 * Security: Narrow all roles/permissions
 * Security: Secure database credentials
 * Security: Setup database connection information in parameters, or use a dns name to access it
-* Networking: ECS tasks should use **awsvpc** networking mode. See https://aws.amazon.com/blogs/compute/introducing-cloud-native-networking-for-ecs-containers/
 * Networking: Remove NAT Gateways for cost-savings
 * Networking Attempt to keep ECS hosts in the same region as the active RDS host
 * Networking: Change EFS to use security group from service, instead of ECS Security Group
 * Networking: Use a different CIDR range in private subnet from public subnet
 * Networking: Optimize subnets to be minimum possible size
-* Networking: Move from ALB to NLB, using a different port per service	   
 * Performance: Configure CPU limits on tasks, such that no task can consume an unfair share of the hosts resources
 * Performance: Optimize instance types for ECS and RDS
-* Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 
 
 
