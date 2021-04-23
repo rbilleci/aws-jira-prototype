@@ -59,7 +59,7 @@ Resources:
               HTTPPort: 80
               HTTPSPort: 443
               OriginKeepaliveTimeout: 30
-              OriginProtocolPolicy: https-only
+              OriginProtocolPolicy: http-only
               OriginReadTimeout: 60
             DomainName: !GetAtt NLB.DNSName
             Id: !Ref ServiceName
@@ -99,56 +99,27 @@ Resources:
             !Sub ${EnvironmentName}-public-subnets
       Type: network
 
-  #  Listener:
-  #    Type: AWS::ElasticLoadBalancingV2::Listener
-  #    Properties:
-  #      LoadBalancerArn: !Ref NLB
-  #      Port: 80
-  #      Protocol: TCP
-  #      DefaultActions:
-  #        - Type: forward
-  #          TargetGroupArn: !Ref TargetGroup
-
-  ListenerTLS:
+  Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref NLB
-      Port: 443
+      Port: 80
       Protocol: TCP
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref TargetGroupTLS
+          TargetGroupArn: !Ref TargetGroup
 
-  #  TargetGroup:
-  #    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-  #    Properties:
-  #      HealthCheckIntervalSeconds: 10
-  #      HealthCheckPath: /
-  #      HealthCheckProtocol: HTTP
-  #      #HealthCheckTimeoutSeconds: 5
-  #      HealthyThresholdCount: 3
-  #      #Matcher:
-  #      #  HttpCode: 200-302
-  #      Port: 80
-  #      Protocol: TCP
-  #      #ProtocolVersion: HTTP2
-  #      TargetType: ip
-  #      UnhealthyThresholdCount: 3
-  #      VpcId:
-  #        Fn::ImportValue:
-  #          !Sub ${EnvironmentName}-vpc
-
-  TargetGroupTLS:
+  TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 10
       HealthCheckPath: /
-      HealthCheckProtocol: HTTPS
+      HealthCheckProtocol: HTTP
       #HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 3
       #Matcher:
       #  HttpCode: 200-302
-      Port: 443
+      Port: 80
       Protocol: TCP
       #ProtocolVersion: HTTP2
       TargetType: ip
@@ -158,7 +129,7 @@ Resources:
           !Sub ${EnvironmentName}-vpc
 
   Service:
-    DependsOn: ListenerTLS
+    DependsOn: Listener
     Type: AWS::ECS::Service
     Properties:
       Cluster:
@@ -171,12 +142,9 @@ Resources:
       HealthCheckGracePeriodSeconds: 180
       LaunchType: EC2
       LoadBalancers:
-        #        - ContainerName: !Sub ${EnvironmentName}-${ServiceName}
-        #          ContainerPort: 8080
-        #          TargetGroupArn: !Ref  TargetGroup
         - ContainerName: !Sub ${EnvironmentName}-${ServiceName}
-          ContainerPort: 8443
-          TargetGroupArn: !Ref TargetGroupTLS
+          ContainerPort: 80
+          TargetGroupArn: !Ref  TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
@@ -201,7 +169,7 @@ Resources:
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
-          Memory: 8064
+          Memory: 8192
           MountPoints:
             - SourceVolume: efs-data
               ContainerPath: /opt/upsource/data
@@ -211,8 +179,7 @@ Resources:
               ContainerPath: /opt/upsource/backups
           Name: !Sub ${EnvironmentName}-${ServiceName}
           PortMappings:
-            - ContainerPort: 8080
-            - ContainerPort: 8443
+            - ContainerPort: 80
       ExecutionRoleArn: !Ref TaskExecutionRole
       Family: !Sub ${EnvironmentName}-${ServiceName}
       NetworkMode: awsvpc

@@ -5,7 +5,7 @@ CFN_BUCKET=$2
 CFN_SERVICE=$3
 
 echo CFN_STACK=$CFN_STACK
-echo CFN_BUCKET=CFN_BUCKET
+echo CFN_BUCKET=$CFN_BUCKET
 echo CFN_SERVICE=$CFN_SERVICE
 
 CFN_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)

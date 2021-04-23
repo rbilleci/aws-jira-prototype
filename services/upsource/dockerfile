@@ -1,7 +1,14 @@
 FROM jetbrains/upsource:2020.1.1802
 
-RUN openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes \
-    -out /opt/upsource/local.crt -keyout /opt/upsource/local.key -subj "/C=/ST=/L=/O=/OU=/CN=test.local"
-
-ENTRYPOINT  /opt/upsource/bin/upsource.sh configure --listen-port=8443 --base-url=https://test.local:8443 --secure-mode=tls --tls-server-cert-key-file=/opt/upsource/local.key --tls-server-cert-file=/opt/upsource/local.crt &&\
-            /run.sh
+# apache2 installation for reverse proxy
+USER root
+RUN apt-get update
+RUN apt-get -qq -y install apache2
+ADD apache2.conf /etc/apache2/sites-available/000-default.conf
+RUN a2enmod headers
+RUN a2enmod rewrite
+RUN a2enmod proxy_wstunnel
+RUN a2enmod proxy_http
+EXPOSE 80
+ENTRYPOINT service apache2 start &&\
+           /run.sh
