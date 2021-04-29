@@ -19,6 +19,3 @@ Resources:
       ImageScanningConfiguration:
         scanOnPush: false
       RepositoryName: !Sub ${EnvironmentName}-${ServiceName}
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-${ServiceName}

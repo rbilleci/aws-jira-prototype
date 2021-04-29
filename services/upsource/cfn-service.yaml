@@ -1,17 +1,40 @@
 AWSTemplateFormatVersion: 2010-09-09
-Transform: AWS::Serverless-2016-10-31
-Description: Upsource
+Description: Example Deployment of Service
 
 Parameters:
+
+  CloudFrontCertificateArn:
+    Description: wildcard certificate for environment
+    Type: String
+
+  ContainerMemory:
+    Description: Memory for Container
+    Type: Number
+    Default: 8192
+
+  ContainerPort:
+    Description: Port of Container
+    Type: Number
+    Default: 80
 
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
     Type: String
 
+  ServiceDomainName:
+    Description: Domain Name of the Service, for example; upsource.example.com
+    Type: String
+    Default: upsource.example.com
+
   ServiceName:
     Description: Name of the Service
     Type: String
     Default: upsource
+
+  ServicePriority:
+    Description: Priority for Application Load Balancer Listener
+    Type: Number
+    Default: 11
 
 Resources:
 
@@ -19,8 +42,9 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
+        Aliases:
+          - !Ref ServiceDomainName
         CacheBehaviors:
-          # assets
           - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
             CachedMethods: [ GET, HEAD, OPTIONS ]
             CachePolicyId: !Ref CloudFrontStaticContentPolicy
@@ -30,7 +54,6 @@ Resources:
             SmoothStreaming: false
             TargetOriginId: !Ref ServiceName
             ViewerProtocolPolicy: redirect-to-https
-          # frontend
           - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
             CachedMethods: [ GET, HEAD, OPTIONS ]
             CachePolicyId: !Ref CloudFrontStaticContentPolicy
@@ -59,14 +82,16 @@ Resources:
               HTTPPort: 80
               HTTPSPort: 443
               OriginKeepaliveTimeout: 30
-              OriginProtocolPolicy: http-only
+              OriginProtocolPolicy: https-only
               OriginReadTimeout: 60
-            DomainName: !GetAtt NLB.DNSName
+            DomainName:
+              Fn::ImportValue:
+                !Sub ${EnvironmentName}-load-balancer-dns-name
             Id: !Ref ServiceName
         PriceClass: PriceClass_All
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-${ServiceName}
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CloudFrontCertificateArn
+          SslSupportMethod: sni-only
 
   CloudFrontStaticContentPolicy:
     Type: AWS::CloudFront::CachePolicy
@@ -75,7 +100,7 @@ Resources:
         DefaultTTL: 86400
         MaxTTL: 86400
         MinTTL: 86400
-        Name: !Sub ${EnvironmentName}-${ServiceName}-static-content
+        Name: !Sub ${ServiceName}-static-content-policy
         ParametersInCacheKeyAndForwardedToOrigin:
           CookiesConfig:
             CookieBehavior: none
@@ -86,50 +111,40 @@ Resources:
           QueryStringsConfig:
             QueryStringBehavior: all
 
-  NLB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
-      LoadBalancerAttributes:
-        - Key: load_balancing.cross_zone.enabled
-          Value: true
-      Name: !Sub ${EnvironmentName}-${ServiceName}-nlb
-      Subnets: !Split
-        - ","
-        - Fn::ImportValue:
-            !Sub ${EnvironmentName}-public-subnets
-      Type: network
-
-  Listener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref NLB
-      Port: 80
-      Protocol: TCP
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref TargetGroup
+      ListenerArn:
+        Fn::ImportValue:
+          !Sub ${EnvironmentName}-listener
+      Priority: !Ref ServicePriority
+      Conditions:
+        - Field: host-header
+          Values: [ !Ref ServiceDomainName ]
+      Actions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 10
+      HealthCheckIntervalSeconds: 20
       HealthCheckPath: /
       HealthCheckProtocol: HTTP
-      #HealthCheckTimeoutSeconds: 5
+      HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 3
-      #Matcher:
-      #  HttpCode: 200-302
+      Matcher:
+        HttpCode: 200-302
       Port: 80
-      Protocol: TCP
-      #ProtocolVersion: HTTP2
+      Protocol: HTTP
       TargetType: ip
-      UnhealthyThresholdCount: 3
+      UnhealthyThresholdCount: 6
       VpcId:
         Fn::ImportValue:
           !Sub ${EnvironmentName}-vpc
 
   Service:
-    DependsOn: Listener
+    DependsOn: ListenerRule
     Type: AWS::ECS::Service
     Properties:
       Cluster:
@@ -139,12 +154,12 @@ Resources:
         MaximumPercent: 100
         MinimumHealthyPercent: 0
       DesiredCount: 1
-      HealthCheckGracePeriodSeconds: 180
+      HealthCheckGracePeriodSeconds: 300
       LaunchType: EC2
       LoadBalancers:
-        - ContainerName: !Sub ${EnvironmentName}-${ServiceName}
-          ContainerPort: 80
-          TargetGroupArn: !Ref  TargetGroup
+        - ContainerName: !Sub ${ServiceName}
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
@@ -169,7 +184,7 @@ Resources:
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
-          Memory: 8192
+          Memory: !Ref ContainerMemory
           MountPoints:
             - SourceVolume: efs-data
               ContainerPath: /opt/upsource/data
@@ -177,11 +192,11 @@ Resources:
               ContainerPath: /opt/upsource/conf
             - SourceVolume: efs-backups
               ContainerPath: /opt/upsource/backups
-          Name: !Sub ${EnvironmentName}-${ServiceName}
+          Name: !Sub ${ServiceName}
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: !Ref ContainerPort
       ExecutionRoleArn: !Ref TaskExecutionRole
-      Family: !Sub ${EnvironmentName}-${ServiceName}
+      Family: !Sub ${ServiceName}
       NetworkMode: awsvpc
       TaskRoleArn: !Ref TaskRole
       Volumes:
@@ -218,13 +233,61 @@ Resources:
         ECSSecurityGroup:
           Fn::ImportValue:
             !Sub ${EnvironmentName}-ecs-security-group
-        FilesystemName: !Sub ${EnvironmentName}-${ServiceName}
+        FilesystemName: !Sub ${ServiceName}
         PrivateSubnets:
           Fn::ImportValue:
             !Sub ${EnvironmentName}-private-subnets
         VPC:
           Fn::ImportValue:
             !Sub ${EnvironmentName}-vpc
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${ServiceName}
+      RetentionInDays: 90
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${ServiceName}-ecs-task-execution-role
+      AssumeRolePolicyDocument:
+        Statement:
+          Action: [ sts:AssumeRole ]
+          Effect: Allow
+          Principal:
+            Service: [ ecs-tasks.amazonaws.com ]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: !Sub ${ServiceName}-ecs-task-execution-policy
+          PolicyDocument:
+            Statement:
+              - Action: [ ssm:GetParameters, ssm:GetParameter,
+                          secretsmanager:GetSecretValue, secretsmanager:DescribeSecret,
+                          kms:Decrypt ]
+                Effect: Allow
+                Resource: "*"
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${ServiceName}-ecs-task-role
+      AssumeRolePolicyDocument:
+        Statement:
+          Action: [ sts:AssumeRole ]
+          Effect: Allow
+          Principal:
+            Service: [ ecs-tasks.amazonaws.com ]
+      Policies:
+        - PolicyName: !Sub ${ServiceName}-ecs-task-policy
+          PolicyDocument:
+            Statement:
+              - Action: [ elasticfilesystem:* ]
+                Effect: Allow
+                Resource: "*"
 
   EFSDataAccessPoint:
     Type: AWS::EFS::AccessPoint
@@ -258,44 +321,3 @@ Resources:
           OwnerUid: "13001"
           Permissions: "750"
         Path: /backups
-
-  LogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub ${EnvironmentName}-${ServiceName}
-      RetentionInDays: 90
-
-  TaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Path: /
-      RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSTaskExecutionRole-${AWS::Region}
-      AssumeRolePolicyDocument:
-        Statement:
-          Effect: Allow
-          Action: [ sts:AssumeRole ]
-          Principal:
-            Service: [ ecs-tasks.amazonaws.com ]
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: !Sub ${EnvironmentName}-${ServiceName}
-          PolicyDocument:
-            Statement:
-              - Action: [ secretsmanager:GetSecretValue, secretsmanager:DescribeSecret, kms:Decrypt ]
-                Effect: Allow
-                Resource: "*"
-
-  TaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Path: /
-      RoleName: !Sub ${EnvironmentName}-${ServiceName}-ECSTaskRole-${AWS::Region}
-      AssumeRolePolicyDocument:
-        Statement:
-          Action: [ sts:AssumeRole ]
-          Effect: Allow
-          Principal:
-            Service: [ ecs-tasks.amazonaws.com ]
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess

@@ -1,5 +1,11 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Template to deploy poc for Team City, JIRA environment
+Parameters:
+
+  CertificateArn:
+    Description: wildcard certificate for environment
+    Type: String
+
 Resources:
 
   ALB:
@@ -7,6 +13,7 @@ Resources:
     Properties:
       TemplateURL: infrastructure/cfn-alb.yaml
       Parameters:
+        CertificateArn: !Ref CertificateArn
         EnvironmentName: !Ref AWS::StackName
         PublicSubnets: !GetAtt VPC.Outputs.PublicSubnets
         VPC: !GetAtt VPC.Outputs.VPC
@@ -40,18 +47,18 @@ Resources:
         Password: password
         VPC: !GetAtt VPC.Outputs.VPC
 
-#  ESS:
-#    Type: AWS::CloudFormation::Stack
-#    Properties:
-#      TemplateURL: infrastructure/cfn-ess.yaml
-#      Parameters:
-#        EnvironmentName: !Ref AWS::StackName
-#        ElasticsearchVersion: 7.8
-#        InstanceType: t3.small.elasticsearch
-#        InstanceCount: 1
-#        Subnets: !GetAtt VPC.Outputs.PublicSubnets
-#        VolumeSize: 100
-#        VPC: !GetAtt VPC.Outputs.VPC
+  #  ESS:
+  #    Type: AWS::CloudFormation::Stack
+  #    Properties:
+  #      TemplateURL: infrastructure/cfn-ess.yaml
+  #      Parameters:
+  #        EnvironmentName: !Ref AWS::StackName
+  #        ElasticsearchVersion: 7.8
+  #        InstanceType: t3.small.elasticsearch
+  #        InstanceCount: 1
+  #        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+  #        VolumeSize: 100
+  #        VPC: !GetAtt VPC.Outputs.VPC
 
   VPC:
     Type: AWS::CloudFormation::Stack
