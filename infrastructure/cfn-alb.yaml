@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
 
+  CertificateArn:
+    Description: wildcard certificate for environment
+    Type: String
+
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
     Type: String
@@ -18,43 +22,43 @@ Resources:
   LB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Ref EnvironmentName
+      Name: !Sub alb-${EnvironmentName}
       Subnets: !Ref PublicSubnets
       SecurityGroups: [ !Ref SecurityGroup ]
-      Tags:
-        - Key: Name
-          Value: !Ref EnvironmentName
       Type: application
 
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref LB
-      Port: 80
-      Protocol: HTTP
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref DefaultTargetGroup
+      LoadBalancerArn: !Ref LB
+      Port: 443
+      Protocol: HTTPS
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId: !Ref VPC
-      GroupDescription: Access to the load balancer that sits in front of ECS
+      GroupDescription: !Sub alb-sg-${EnvironmentName}
+      GroupName: !Sub alb-sg-${EnvironmentName}
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
-          IpProtocol: -1
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-LoadBalancers
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+      VpcId: !Ref VPC
 
   DefaultTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${EnvironmentName}-default
+      Name: !Sub default-tg-${EnvironmentName}
+      Port: 443
+      Protocol: HTTPS
+      ProtocolVersion: HTTP2
       VpcId: !Ref VPC
-      Port: 80
-      Protocol: HTTP
 
 Outputs:
 

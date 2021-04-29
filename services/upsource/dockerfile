@@ -1,0 +1,14 @@
+FROM jetbrains/upsource:2020.1.1802
+
+# apache2 installation for reverse proxy
+USER root
+RUN apt-get update
+RUN apt-get -qq -y install apache2
+ADD apache2.conf /etc/apache2/sites-available/000-default.conf
+RUN a2enmod headers
+RUN a2enmod rewrite
+RUN a2enmod proxy_wstunnel
+RUN a2enmod proxy_http
+EXPOSE 80
+ENTRYPOINT service apache2 start &&\
+           /run.sh

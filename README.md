@@ -1,145 +1,156 @@
-
 # Overview
 
-An example of deploying a JIRA and Elasticsearch environment on AWS
+The project offers an AWS CloudFormation template that demonstrates how to deploy development infrastructure to AWS,
+that includes:
 
-# Deployment
+- JIRA
+- TeamCity
+- Upsource
+- Mediawiki
+- ElasticSearch Service
 
-Deployment presently requires some manual steps.
 
-#### Step 1 - Create a Bucket
+# Deployment Steps
 
-For deploying the infrastructure, you will need to create an Amazon S3 Bucket. 
-AWS CloudFormation stores templates in the bucket. 
-After creating the bucket, take note of it for the next steps.
 
-#### Step 2 - Install pre-requisites
+## Step 1 - Install pre-requisites
 
-The following pre-requisites must be installed:
- 
-* Install Docker
-* Install the AWS Command Line Interface: https://aws.amazon.com/cli/
+The following pre-requisites must be installed on the machine you run the installation from:
 
-Run **aws configure** and setup the right region and access keys
+* AWS Command Line Interface: https://aws.amazon.com/cli/
+* Docker
 
-#### Step 3 - Configure Local Environment
+Run **aws configure** and set the region you'll deploy the applications to and access keys.
 
-Open a terminal session and set variables used to deploy the AWS CloudFormation templates. 
-For **CFN_BUCKET**, enter the bucket name you used in Step 1.
-For **CFN_STACK**, enter the AWS CloudFormation stack name you want to use for the environment. 
+---
+## Step 2 - Configure Domain Name
 
-    CFN_BUCKET=<YOUR BUCKET NAME>
-    CFN_STACK=<YOUR STACK NAME>
-    CFN_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-    CFN_REGION=$(aws configure get region)
+Open a terminal session and set the variable for your domain name:
 
-#### Step 4 - Deploy the VPC, ECS, and RDS infrastructure 
+    export CFN_DOMAIN=<YOUR_DOMAIN_DOMAIN>
 
-In the same terminal session, run the following commands.
+For `CFN_DOMAIN`, enter the base domain name of the applications. For example, if JIRA will have a domain name
+of `jira.example.com`, use `example.com` for the value. The value must be all lowercase and cannot contain underscores,
+end with a dash, have consecutive periods, or use dashes adjacent to periods. The value must be for a domain name you
+can approve SSL certificates for using email or DNS validation.
 
-Create a service linked role for Elasticsearch:
+---
+## Step 3 - Create certificates in the AWS Certificate Manager
 
-    aws iam create-service-linked-role --aws-service-name es.amazonaws.com
+Valid SSL certificates are required to deploy the infrastructure and applications. The SSL certificates are used by
+Amazon CloudFront and the AWS Elastic Load Balancers. We use wildcard certificates, like e.g `*.example.com` so you can
+deploy multiple applications under the base domain name.
 
-Then create the infrastructure:
+Run the following commands to request the certificates. The first command makes a request for the region your
+application will be deployed to. The second command makes a request for `us-east-1`. This second request may be required
+because Amazon CloudFront requires the SSL certificate be available in the `us-east-1` region. So, if your application
+is running in us-east-1, the second request is redundant, but causes no harm.
 
-    aws cloudformation package --template-file cfn.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}
+    aws acm request-certificate --domain-name \*.${CFN_DOMAIN}
+    aws acm request-certificate --domain-name \*.${CFN_DOMAIN} --region us-east-1                              
 
-The **package** command packages up the template files and uploads dependencies to S3. The **deploy** command deploys the AWS CloudFormation stack.
+---
+## Step 4 - Validate the Certificates
 
-#### Step 5 - Create the databases for the application
+You can view the certificate requests by logging into the AWS Management Console and navigating to the AWS Certificate
+Manager dashboard.
 
-Next, we will create the MySQL databases required to install the applications and services. 
-Perform the following steps:  
+You need to validate the certificates using either DNS validation or Email validation. Information is
+available https://docs.aws.amazon.com/acm/latest/userguide/domain-ownership-validation.html
 
-1. Login to the AWS Management Console 
+Do not continue to the next step until the certificate(s) are validated.
+
+---
+## Step 5 - Deploy the VPC, ECS, and RDS infrastructure
+
+Deploy the infrastructure by running the following command:
+
+    ./deploy-infra.sh
+
+---
+## Step 6 - Create the databases for the application
+
+Next, we will create the MySQL databases required to install the applications and services. Perform the following steps:
+
+1. Login to the AWS Management Console
 2. Navigate to the EC2 Service
 3. Select **Instances**
 4. Select the checkbox next to the EC2 instance created by ECS.
 5. Click on **Connect** and select to open a terminal session using the **Session Manager**
-6. Once you are logged into the EC2 instance, run the following commands,
- making sure to replace **USER** and **PASSWORD** with your MySQL user:
+6. Once you are logged into the EC2 instance, run the following commands, making sure to replace **USER** and **
+   PASSWORD** with your MySQL user:
 
         sudo su ec2-user
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
-        
-7. You can now close the Session Manager session. All deployment following deployment steps will be run from the terminal of your local machine.
 
-#### Step 6 - Build and Deploy JIRA
+7. You can now close the Session Manager session. All deployment following deployment steps will be run from the
+   terminal of your local machine.
+---
+## Step 7 - JIRA
 
-Set the environment
-    
-    CFN_SERVICE=jira
-   
-Build and push the docker image
+### Deploy 
 
-    aws cloudformation deploy --template-file components/cfn-ecr.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE}-ecr --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd services/${CFN_SERVICE}    
-    docker build -t ${CFN_SERVICE} .    
-    CFN_TAG=$(docker images ${CFN_SERVICE} -q)
-    aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
-    docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd ...
-    
-You can now login to JIRA and complete the setup steps.
+Run the following command:
 
-1. Login to the AWS Management Console 
-2. Navigate to CloudFront
-3. Get the URL of the distribution
-4. Go to the distribution in a web browser and complete the standard JIRA setup steps
+    ./deploy.sh jira
 
-It may take some time to complete loading, since JIRA creates the database and file objects the first time it is used.
+### Configure Domain Name for Service to target CloudFront Distribution
 
-#### Step 7 - Build and Deploy TeamCity     
-    
-Set the environment
-    
-    CFN_SERVICE=teamcity
+Before proceeding with the installation, you'll need to configure a DNS entry to point to the CloudFront
+distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
+. The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
+used `apps.example.com` as the domain, the Route53 entry would be `jira.apps.example.com`.
 
-Build and push the docker image
-    
-    aws cloudformation deploy --template-file components/cfn-ecr.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE}-ecr --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd services/${CFN_SERVICE}    
-    docker build -t ${CFN_SERVICE} .    
-    CFN_TAG=$(docker images ${CFN_SERVICE} -q)
-    aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
-    docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd ...
+### Complete JIRA setup
 
-#### Step 8 - Deploy Upsource    
+You can now log in to JIRA and complete the setup steps. In your browser, navigate to the 
+domain name used in the previous step. 
+It may take some time to complete loading, since JIRA creates the database first time it is used.
 
-Set the environment
-    
-    CFN_SERVICE=upsource
+---
+## Step 8 - TeamCity
 
-Package and deploy the cloudformation template:
-    
-    cd services/${CFN_SERVICE}    
-    aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-    aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-    cd ...
+### Deploy
 
-To complete the installation of Upsource, you'll need to get the Wizard Token output into the log
-files. After the deployment is complete, access the AWS CloudWatch logs for Upsource. 
-You'll need to find the installation token in the logs. It looks something like:
+Run the following command:
+
+    ./deploy.sh teamcity
+
+### Configure Domain Name for Service to target CloudFront Distribution
+
+Before proceeding with the installation, you'll need to configure a DNS entry to point to the CloudFront
+distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
+. The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
+used `apps.example.com` as the domain, the Route53 entry would be `teamcity.apps.example.com`.
+
+---
+## Step 9 - Upsource
+
+### Deploy
+
+Run the following command:
+
+    ./deploy.sh upsource
+
+### Configure Domain Name for Service to target CloudFront Distribution
+
+Before proceeding with the installation, you'll need to configure a DNS entry to point to the CloudFront
+distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
+. The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
+used `apps.example.com` as the domain, the Route53 entry would be `upsource.apps.example.com`.
+
+### Complete Upsource Installation Wizard
+
+Now you can access Upsource at the domain name you configured above, and run the installation wizard.
+
+You'll need to get the Wizard Token output into the log files. Access the AWS CloudWatch logs for Upsource. You'll need
+to find the installation token in the logs. It should be the last line and look like:
 
     * JetBrains Upsource 2020.1 Configuration Wizard will listen inside container on 
     {0.0.0.0:8080}/ after start and can be accessed by URL 
     [http://<put-your-docker-HOST-name-here>:<put-host-port-mapped-to-container-port-8080-here>
     /?wizard_token=hOsFEoWcjl41iLAGHKwa] 
-
-Copy the wizard token, then access Upsource over the CloudFront URL, as an example: https://dblh7quq8h4ke.cloudfront.net. 
-You'll see the Upsource install wizard and can complete the process.
-
-
 
 
 # Notes on Costs
@@ -148,9 +159,10 @@ All deployment options have the following:
 
 * Client VPN with 10 users - 40 hours per week per user
 * Monthly data transfer of 100 GB outbound and 100 GB inter-region
-* ECS for application deployment, 1x r5a.xlarge (32 GB) 
+* ECS for application deployment, 1x r5a.xlarge (32 GB)
 * Elasticsearch Service uses instances with 64 GB of memory.
-* EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned throughput of 10 MB/s
+* EFS Volume of 100 GB frequently accessed and 1 TB of infrequently accessed data, and a **minimum** provisioned
+  throughput of 10 MB/s
 * NAT Gateways (3)
 * ALB (3-AZs)
 * Team City Server included, but build agents are not
@@ -160,20 +172,20 @@ ECS Servers sized for the following:
 * 4 GB - JIRA
 * 4 GB - TeamCity (Tenant 1)
 * 4 GB - TeamCity (Tenant 2)
-* 8 GB - Upsource 
+* 8 GB - Upsource
 * 1 GB - MediaWiki
 * 10 BG - reserved for other applications
 
 #### Non-HA deployment with RDS and Elasticsearch using a single AZ
-    
+
 * Costs: https://calculator.aws/#/estimate?id=abe514b2eae49e058415c3c725fe1de5a4753b4b
 * Costs with reserved instances: https://calculator.aws/#/estimate?id=6d9550cd8c272eed76803331973e368382eac80a
 
 #### HA-deployment with Multi-AZ RDS and Elasticsearch across 3 AZs
 
 * Costs: https://calculator.aws/#/estimate?id=b6f83236d766780156ca7d65a9a0c55d5cf92348
-* Costs with reserved instances and using smaller ES instances since we have 3 running: https://calculator.aws/#/estimate?id=327859c4daa72b73c1875995b139ae1cea610cc5
-
+* Costs with reserved instances and using smaller ES instances since we have 3
+  running: https://calculator.aws/#/estimate?id=327859c4daa72b73c1875995b139ae1cea610cc5
 
 #### Cost Reduction Options:
 
@@ -189,28 +201,20 @@ Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 
 # Open Tasks
 
-* JIRA email configuration
-* Configure Elasticsearch Service Linked Role as CloudFormation resource
-* Accessibility of ES
-* Media Wiki
-* Git Integration
-* Download Server
-* Investigate autoscaling of build servers, use of docker
-* Perform CloudFront invalidation on deployment
-* Merge cfn-ecr template with service template
-* Security: Narrow all roles/permissions
 * Security: Secure database credentials
 * Security: Setup database connection information in parameters, or use a dns name to access it
-* Networking: ECS tasks should use **awsvpc** networking mode. See https://aws.amazon.com/blogs/compute/introducing-cloud-native-networking-for-ecs-containers/
+* AWS Cognito -> ALB integration
+* Simplify Deployment process and support multiple teamcity deploys
+* Security: Narrow all roles/permissions
+* Configure Elasticsearch Service Linked Role as CloudFormation resource
+* Accessibility of ES
+* Investigate autoscaling of build servers, use of docker
 * Networking: Remove NAT Gateways for cost-savings
-* Networking Attempt to keep ECS hosts in the same region as the active RDS host
 * Networking: Change EFS to use security group from service, instead of ECS Security Group
 * Networking: Use a different CIDR range in private subnet from public subnet
 * Networking: Optimize subnets to be minimum possible size
-* Networking: Move from ALB to NLB, using a different port per service	   
 * Performance: Configure CPU limits on tasks, such that no task can consume an unfair share of the hosts resources
 * Performance: Optimize instance types for ECS and RDS
-* Review lifecycle hook and Load balancers here: https://github.com/aws-samples/ecs-refarch-cloudformation/tree/master/infrastructure
 
 
 
