@@ -10,7 +10,7 @@ Parameters:
   ContainerMemory:
     Description: Memory for Container
     Type: Number
-    Default: 3968
+    Default: 1024
 
   ContainerPort:
     Description: Port of Container
@@ -24,17 +24,17 @@ Parameters:
   ServiceDomainName:
     Description: Domain Name of the Service, for example; upsource.example.com
     Type: String
-    Default: jira.example.com
+    Default: mediawiki.example.com
 
   ServiceName:
     Description: Name of the Service
     Type: String
-    Default: jira
+    Default: mediawiki
 
   ServicePriority:
     Description: Priority for Application Load Balancer Listener
     Type: Number
-    Default: 10
+    Default: 12
 
   RDSUsername:
     Description: Username for database
@@ -56,25 +56,6 @@ Resources:
       DistributionConfig:
         Aliases:
           - !Ref ServiceDomainName
-        CacheBehaviors:
-          - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
-            CachedMethods: [ GET, HEAD, OPTIONS ]
-            CachePolicyId: !Ref CloudFrontStaticContentPolicy
-            Compress: true
-            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
-            PathPattern: "/s/*"
-            SmoothStreaming: false
-            TargetOriginId: !Ref ServiceName
-            ViewerProtocolPolicy: redirect-to-https
-          - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
-            CachedMethods: [ GET, HEAD, OPTIONS ]
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # cache optimized
-            Compress: true
-            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
-            PathPattern: "/images/*"
-            SmoothStreaming: false
-            TargetOriginId: !Ref ServiceName
-            ViewerProtocolPolicy: redirect-to-https
         DefaultCacheBehavior:
           AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
           CachedMethods: [ GET, HEAD, OPTIONS ]
@@ -105,24 +86,6 @@ Resources:
           AcmCertificateArn: !Ref CloudFrontCertificateArn
           SslSupportMethod: sni-only
 
-  CloudFrontStaticContentPolicy:
-    Type: AWS::CloudFront::CachePolicy
-    Properties:
-      CachePolicyConfig:
-        DefaultTTL: 86400
-        MaxTTL: 86400
-        MinTTL: 86400
-        Name: !Sub ${ServiceName}-static-content-policy
-        ParametersInCacheKeyAndForwardedToOrigin:
-          CookiesConfig:
-            CookieBehavior: none
-          EnableAcceptEncodingBrotli: true
-          EnableAcceptEncodingGzip: true
-          HeadersConfig:
-            HeaderBehavior: none
-          QueryStringsConfig:
-            QueryStringBehavior: all
-
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -141,7 +104,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 20
-      HealthCheckPath: /status
+      HealthCheckPath: /
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 3
@@ -179,53 +142,40 @@ Resources:
     Properties:
       ContainerDefinitions:
         - Environment:
-            # File
-            - Name: JIRA_HOME
-              Value: /var/efs
-            # JVM Settings
-            - Name: JVM_MINIMUM_MEMORY
-              Value: 3072m
-            - Name: JVM_MAXIMUM_MEMORY
-              Value: 3072m
-            - Name: JVM_RESERVED_CODE_CACHE_SIZE
-              Value: 512m
-            # Reverse Proxy Settings
-            - Name: ATL_PROXY_NAME
-              Value: !GetAtt CloudFront.DomainName
-            - Name: ATL_PROXY_PORT
-              Value: 443
-            - Name: ATL_TOMCAT_SCHEME
-              Value: https
-            # Database Settings
-            - Name: ATL_JDBC_URL
+            # Database Configuration
+            - Name: MEDIAWIKI_DATABASE_HOST
               Value:
-                !Join
-                - ''
-                - - 'jdbc:mysql://'
-                  - Fn::ImportValue:
-                      !Sub ${EnvironmentName}-rds-endpoint-address
-                  - ':3306/jira'
-            - Name: ATL_JDBC_USER
+                Fn::ImportValue:
+                  !Sub ${EnvironmentName}-rds-endpoint-address
+            - Name: MEDIAWIKI_DATABASE_NAME
+              Value: mediawiki
+            - Name: MEDIAWIKI_DATABASE_USER
               Value: !Ref RDSUsername
-            - Name: ATL_JDBC_PASSWORD
+            - Name: MEDIAWIKI_DATABASE_PASSWORD
               Value: !Ref RDSPassword
-            - Name: ATL_DB_DRIVER
-              Value: com.mysql.jdbc.Driver
-            - Name: ATL_DB_TYPE
-              Value: mysql
-            - Name: ATL_DB_SCHEMA_NAME
-              Value: ''
+            - Name: MEDIAWIKI_HOST
+              Value: !Ref ServiceDomainName
+            - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
+              Value: !Ref ContainerPort
+            - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
+              Value: 443
+            - Name: MEDIAWIKI_ENABLE_HTTPS
+              Value: yes
+            - Name: MEDIAWIKI_USERNAME
+              Value: mediawiki
+            - Name: MEDIAWIKI_PASSWORD
+              Value: mediawiki
           Essential: true
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
+          Image: bitnami/mediawiki:1.35.2
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
           Memory: !Ref ContainerMemory
-          MountPoints:
-            - SourceVolume: efs
-              ContainerPath: /var/efs
+#          MountPoints:
+#            - SourceVolume: efs-mediawiki-data
+#              ContainerPath: /bitnami/mediawiki
           Name: !Sub ${ServiceName}
           PortMappings:
             - ContainerPort: !Ref ContainerPort
@@ -236,10 +186,11 @@ Resources:
         - EFSVolumeConfiguration:
             AuthorizationConfig:
               IAM: ENABLED
+              AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
             FilesystemId: !GetAtt EFS.Outputs.ID
             RootDirectory: /
             TransitEncryption: ENABLED
-          Name: efs
+          Name: efs-mediawiki-data
 
   EFS:
     Type: AWS::CloudFormation::Stack
@@ -304,3 +255,14 @@ Resources:
               - Action: [ elasticfilesystem:* ]
                 Effect: Allow
                 Resource: "*"
+
+  EFSAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "1001"
+          OwnerUid: "1001"
+          Permissions: "750"
+        Path: /

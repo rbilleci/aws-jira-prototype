@@ -137,7 +137,7 @@ Resources:
         HttpCode: 200-302
       Port: 80
       Protocol: HTTP
-      TargetType: ip
+      TargetType: instance
       UnhealthyThresholdCount: 6
       VpcId:
         Fn::ImportValue:
@@ -160,17 +160,6 @@ Resources:
         - ContainerName: !Sub ${ServiceName}
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref TargetGroup
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: DISABLED
-          SecurityGroups: !Split
-            - ","
-            - Fn::ImportValue:
-                !Sub ${EnvironmentName}-ecs-security-group
-          Subnets: !Split
-            - ","
-            - Fn::ImportValue:
-                !Sub ${EnvironmentName}-private-subnets
       TaskDefinition: !Ref TaskDefinition
 
   TaskDefinition:
@@ -178,6 +167,7 @@ Resources:
     Properties:
       ContainerDefinitions:
         - Environment:
+            # Memory Configuration
             - Name: TEAMCITY_SERVER_MEM_OPTS
               Value: "-Xmx2g -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m"
           Essential: true
@@ -196,7 +186,6 @@ Resources:
             - ContainerPort: !Ref ContainerPort
       ExecutionRoleArn: !Ref TaskExecutionRole
       Family: !Sub ${ServiceName}
-      NetworkMode: awsvpc
       TaskRoleArn: !Ref TaskRole
       Volumes:
         - EFSVolumeConfiguration:
@@ -206,7 +195,6 @@ Resources:
             RootDirectory: /
             TransitEncryption: ENABLED
           Name: efs
-
 
   EFS:
     Type: AWS::CloudFormation::Stack

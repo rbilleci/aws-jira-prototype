@@ -83,6 +83,7 @@ Next, we will create the MySQL databases required to install the applications an
         sudo su ec2-user
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+        mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS mediawiki CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
 
 7. You can now close the Session Manager session. All deployment following deployment steps will be run from the
    terminal of your local machine.
@@ -201,6 +202,9 @@ Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 
 # Open Tasks
 
+* Optimize EFS Configuration
+* Update pricing info  
+* Teamcity Database Configuration
 * Security: Secure database credentials
 * Security: Setup database connection information in parameters, or use a dns name to access it
 * AWS Cognito -> ALB integration
