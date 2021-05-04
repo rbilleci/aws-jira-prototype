@@ -77,13 +77,16 @@ Next, we will create the MySQL databases required to install the applications an
 3. Select **Instances**
 4. Select the checkbox next to the EC2 instance created by ECS.
 5. Click on **Connect** and select to open a terminal session using the **Session Manager**
-6. Once you are logged into the EC2 instance, run the following commands, making sure to replace **USER** and **
-   PASSWORD** with your MySQL user:
-
+6. Once you are logged into the EC2 instance, run the following commands:
+   
         sudo su ec2-user
-        mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
-        mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
-        mysql -h ${RDS_ENDPOINT_ADDRESS} -u <USER> -p<PASSWORD> -e "CREATE DATABASE IF NOT EXISTS mediawiki CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+        sudo yum -y install aws-cli jq
+        ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+        REGION="`echo \"$ZONE\" | sed 's/[a-z]$//'`"
+        RDS_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /apps-mvsm-io/rds/credentials --region $REGION --query SecretString --output text | jq -r '.password')
+        mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+        mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+        mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS mediawiki CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
 
 7. You can now close the Session Manager session. All deployment following deployment steps will be run from the
    terminal of your local machine.
@@ -105,9 +108,15 @@ used `apps.example.com` as the domain, the Route53 entry would be `jira.apps.exa
 
 ### Complete JIRA setup
 
-You can now log in to JIRA and complete the setup steps. In your browser, navigate to the 
-domain name used in the previous step. 
-It may take some time to complete loading, since JIRA creates the database first time it is used.
+To complete the JIRA installation, proceed with the following steps:
+
+1. In your browser, navigate to the domain name used in the previous step. It may take some time to complete loading, since JIRA creates the database first time it is used.
+2. JIRA will prompt you for the license.
+3. After you enter the license, JIRA may restart and will be unavailable for a few minutes.
+4. After about 5 minutes, reload the page   
+5. JIRA will prompt you for the license a second time. 
+6. You will then be guided through the final installation steps.
+
 
 ---
 ## Step 8 - TeamCity
@@ -124,6 +133,26 @@ Before proceeding with the installation, you'll need to configure a DNS entry to
 distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
 . The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
 used `apps.example.com` as the domain, the Route53 entry would be `teamcity.apps.example.com`.
+
+### Retrieve the RDS Endpoint and RDS Secret
+
+The password for RDS is randomly generated and stored in the AWS Secrets Manager.
+You'll need to `root` user password to configure TeamCity. 
+From the AWS Management Console, navigate to the Secrets Manager, select the secret,
+and click on the button: `Retrieve secret value`. You'll use this password in the next step.
+
+### Configure TeamCity
+
+1. In a browser window, navigate to TeamCity using the domain you configured in the previous step. 
+For example `teamcity.apps.example.com`.
+2. You'll see the page: "TeamCity First Start". Click `Proceed`. TeamCity will initialize the data directory
+3. During the `Database connection setup` page, select `MySQL`, then enter the database credentials:
+   * for the database hose, enter the RDS Endpoint address
+   * for the database name, enter `teamcity`
+   * for the username, enter `root`
+   * for the password, enter the password from the secrets manager
+
+
 
 ---
 ## Step 9 - Upsource

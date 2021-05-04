@@ -12,16 +12,6 @@ Parameters:
     Default: false
     AllowedValues: [ false, true ]
 
-  Username:
-    Description: An environment name that will be prefixed to resource names
-    Type: String
-    NoEcho: true
-
-  Password:
-    Description: An environment name that will be prefixed to resource names
-    Type: String
-    NoEcho: true
-
   PrivateSubnets:
     Description: Choose which subnets this ECS cluster should be deployed to
     Type: List<AWS::EC2::Subnet::Id>
@@ -32,7 +22,19 @@ Parameters:
 
 Resources:
 
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for database user
+      GenerateSecretString:
+        GenerateStringKey: password
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 16
+        SecretStringTemplate: '{ "username": "root" }'
+      Name: !Sub /${EnvironmentName}/rds/credentials
+
   DB:
+    DependsOn: [ DBSecret ]
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: 100
@@ -48,8 +50,8 @@ Resources:
       EnablePerformanceInsights: false
       Engine: mysql
       EngineVersion: 8.0.21
-      MasterUsername: !Ref Username
-      MasterUserPassword: !Ref Password
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}::username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}::password}}"
       MultiAZ: !Ref MultiAZ
       PreferredBackupWindow: 03:00-04:00
       PreferredMaintenanceWindow: Sun:08:00-Sun:09:00
@@ -57,6 +59,14 @@ Resources:
       StorageEncrypted: true
       StorageType: gp2
       VPCSecurityGroups: [ !Ref SecurityGroup ]
+
+  DBSecretAttachment:
+    DependsOn: [ DBSecret, DB ]
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DBSecret
+      TargetId: !Ref DB
+      TargetType: AWS::RDS::DBInstance
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup

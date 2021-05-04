@@ -43,8 +43,6 @@ Resources:
         InstanceType: db.t3.small
         MultiAZ: false
         PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
-        Username: root
-        Password: password
         VPC: !GetAtt VPC.Outputs.VPC
 
   #  ESS:

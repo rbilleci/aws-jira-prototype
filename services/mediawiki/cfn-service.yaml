@@ -37,6 +37,10 @@ Parameters:
     Description: ARN of the Load Balancer Listener
     Type: String
 
+  RDSEndpointAddress:
+    Description: DNS name of RDS Database
+    Type: String
+
   ServiceDomainName:
     Description: Domain Name of the Service, for example; upsource.example.com
     Type: String
@@ -51,22 +55,6 @@ Parameters:
     Description: Priority for Application Load Balancer Listener
     Type: Number
     Default: 12
-
-  RDSEndpointAddress:
-    Description: DNS name of RDS Database
-    Type: String
-
-  RDSUsername:
-    Description: Username for database
-    Type: String
-    Default: root
-    NoEcho: true
-
-  RDSPassword:
-    Description: Password for database
-    Type: String
-    Default: password
-    NoEcho: true
 
   VPC:
     Description: VPC Id
@@ -168,9 +156,9 @@ Resources:
             #- Name: MEDIAWIKI_DATABASE_NAME
             #  Value: mediawiki
             - Name: MEDIAWIKI_DATABASE_USER
-              Value: !Ref RDSUsername
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::username}}"
             - Name: MEDIAWIKI_DATABASE_PASSWORD
-              Value: !Ref RDSPassword
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::password}}"
             #- Name: MEDIAWIKI_HOST
             #  Value: !Ref ServiceDomainName
             - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER

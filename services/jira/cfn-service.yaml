@@ -41,18 +41,6 @@ Parameters:
     Description: DNS name of RDS Database
     Type: String
 
-  RDSUsername:
-    Description: Username for database
-    Type: String
-    Default: root
-    NoEcho: true
-
-  RDSPassword:
-    Description: Password for database
-    Type: String
-    Default: password
-    NoEcho: true
-
   ServiceDomainName:
     Description: Domain Name of the Service, for example; upsource.example.com
     Type: String
@@ -220,9 +208,9 @@ Resources:
             - Name: ATL_JDBC_URL
               Value: !Sub jdbc:mysql://${RDSEndpointAddress}:3306/jira
             - Name: ATL_JDBC_USER
-              Value: !Ref RDSUsername
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::username}}"
             - Name: ATL_JDBC_PASSWORD
-              Value: !Ref RDSPassword
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::password}}"
             - Name: ATL_DB_DRIVER
               Value: com.mysql.jdbc.Driver
             - Name: ATL_DB_TYPE
