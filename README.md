@@ -30,16 +30,17 @@ Open a terminal session and set the variable for your domain name:
     export CFN_DOMAIN=<YOUR_DOMAIN_DOMAIN>
 
 For `CFN_DOMAIN`, enter the base domain name of the applications. For example, if JIRA will have a domain name
-of `jira.example.com`, use `example.com` for the value. The value must be all lowercase and cannot contain underscores,
+of `jira.example.com`, use `example.com`. The value must be all lowercase and cannot contain underscores,
 end with a dash, have consecutive periods, or use dashes adjacent to periods. The value must be for a domain name you
 can approve SSL certificates for using email or DNS validation.
 
 ---
+
 ## Step 3 - Create certificates in the AWS Certificate Manager
 
 Valid SSL certificates are required to deploy the infrastructure and applications. The SSL certificates are used by
-Amazon CloudFront and the AWS Elastic Load Balancers. We use wildcard certificates, like e.g `*.example.com` so you can
-deploy multiple applications under the base domain name.
+Amazon CloudFront and the AWS Elastic Load Balancers. This deployment uses wildcard certificates, like `*.example.com` 
+so you can  deploy multiple applications under the base domain name.
 
 Run the following commands to request the certificates. The first command makes a request for the region your
 application will be deployed to. The second command makes a request for `us-east-1`. This second request may be required
@@ -52,13 +53,11 @@ is running in us-east-1, the second request is redundant, but causes no harm.
 ---
 ## Step 4 - Validate the Certificates
 
-You can view the certificate requests by logging into the AWS Management Console and navigating to the AWS Certificate
-Manager dashboard.
-
-You need to validate the certificates using either DNS validation or Email validation. Information is
+You can view the certificate requests in the AWS Certificate Manager dashboard. You must validate the certificates 
+using either DNS validation or Email validation. Information is
 available https://docs.aws.amazon.com/acm/latest/userguide/domain-ownership-validation.html
 
-Do not continue to the next step until the certificate(s) are validated.
+Do not continue until the certificate(s) are validated.
 
 ---
 ## Step 5 - Deploy the VPC, ECS, and RDS infrastructure
@@ -68,9 +67,9 @@ Deploy the infrastructure by running the following command:
     ./deploy-infra.sh
 
 ---
-## Step 6 - Create the databases for the application
+## Step 6 - Create Application Databases
 
-Next, we will create the MySQL databases required to install the applications and services. Perform the following steps:
+Create the MySQL databases for the applications, with the following steps:
 
 1. Login to the AWS Management Console
 2. Navigate to the EC2 Service
@@ -88,9 +87,10 @@ Next, we will create the MySQL databases required to install the applications an
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS mediawiki CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
 
-7. You can now close the Session Manager session. All deployment following deployment steps will be run from the
-   terminal of your local machine.
+7. You can now close the Session Manager session.
+
 ---
+
 ## Step 7 - JIRA
 
 ### Deploy 
@@ -101,21 +101,22 @@ Run the following command:
 
 ### Configure Domain Name for Service to target CloudFront Distribution
 
-Before proceeding with the installation, you'll need to configure a DNS entry to point to the CloudFront
+Before proceeding with the installation, you must configure a DNS entry to point to the CloudFront
 distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
 . The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
 used `apps.example.com` as the domain, the Route53 entry would be `jira.apps.example.com`.
 
 ### Complete JIRA setup
 
-To complete the JIRA installation, proceed with the following steps:
+Complete the JIRA setup with the following steps:
 
-1. In your browser, navigate to the domain name used in the previous step. It may take some time to complete loading, since JIRA creates the database first time it is used.
+1. In your browser, navigate to the domain name used in the previous step. For example `jira.apps.example.com`
+   It may take more than 10 minutes for the domain name to propagate. Please be patient.
 2. JIRA will prompt you for the license.
-3. After you enter the license, JIRA may restart and will be unavailable for a few minutes.
-4. After about 5 minutes, reload the page   
-5. JIRA will prompt you for the license a second time. 
-6. You will then be guided through the final installation steps.
+3. Enter your license and wait for JIRA to restart.
+4. After 3-5 minutes, reload the page.  
+5. JIRA will prompt you for the license again. 
+6. JIRA will guide you through the final configuration steps.
 
 
 ---
@@ -129,7 +130,7 @@ Run the following command:
 
 ### Configure Domain Name for Service to target CloudFront Distribution
 
-Before proceeding with the installation, you'll need to configure a DNS entry to point to the CloudFront
+Before proceeding with the installation, you must configure a DNS entry to point to the CloudFront
 distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
 . The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
 used `apps.example.com` as the domain, the Route53 entry would be `teamcity.apps.example.com`.
@@ -137,7 +138,7 @@ used `apps.example.com` as the domain, the Route53 entry would be `teamcity.apps
 ### Retrieve the RDS Endpoint and RDS Secret
 
 The password for RDS is randomly generated and stored in the AWS Secrets Manager.
-You'll need to `root` user password to configure TeamCity. 
+You'll need the `root` user password to configure TeamCity. 
 From the AWS Management Console, navigate to the Secrets Manager, select the secret,
 and click on the button: `Retrieve secret value`. You'll use this password in the next step.
 
@@ -153,8 +154,8 @@ For example `teamcity.apps.example.com`.
    * for the password, enter the password from the secrets manager
 
 
-
 ---
+
 ## Step 9 - Upsource
 
 ### Deploy
@@ -172,15 +173,41 @@ used `apps.example.com` as the domain, the Route53 entry would be `upsource.apps
 
 ### Complete Upsource Installation Wizard
 
-Now you can access Upsource at the domain name you configured above, and run the installation wizard.
+You can access Upsource at the domain name you configured above to run the installation wizard.
 
-You'll need to get the Wizard Token output into the log files. Access the AWS CloudWatch logs for Upsource. You'll need
-to find the installation token in the logs. It should be the last line and look like:
+The wizard will ask you for the Wizard Token. This token can be found in the log files.
+1. Access AWS CloudWatch
+2. Select the `upsource` log group
+3. Select the latest log stream and open it
+4. Scroll to the last log entry and expand it. It should look something like the follow:
 
-    * JetBrains Upsource 2020.1 Configuration Wizard will listen inside container on 
-    {0.0.0.0:8080}/ after start and can be accessed by URL 
-    [http://<put-your-docker-HOST-name-here>:<put-host-port-mapped-to-container-port-8080-here>
-    /?wizard_token=hOsFEoWcjl41iLAGHKwa] 
+
+      JetBrains Upsource 2020.1 Configuration Wizard will listen inside container on 
+      {0.0.0.0:8080}/ after start and can be accessed by URL 
+      [http://<put-your-docker-HOST-name-here>:<put-host-port-mapped-to-container-port-8080-here>
+      /?wizard_token=XXXXXXXXXXXXXXX] 
+
+## Step 10 - MediaWiki
+
+Run the following command:
+
+    ./deploy.sh mediawiki
+
+### Configure Domain Name for Service to target CloudFront Distribution
+
+Before proceeding with the installation, you'll need to configure a DNS entry to point to the CloudFront
+distribution for the service. If you are using Amazon Route53, you can create a simple record for `<SERVICE_NAME>.<DOMAIN>`
+. The domain should match the wildcard certificate you configured in the Amazon Certificate Manager. If you
+used `apps.example.com` as the domain, the Route53 entry would be `mediawiki.apps.example.com`.
+
+### Login to MediaWiki
+
+Login to the mediawiki site with username: `user` and password: `bitnami123`
+
+### SMTP Configuration
+
+SMTP settings may be changed from the SSM Parameter Store in the AWS Management Console. 
+Changes to the SMTP settings require a restart of the ECS Service for MediaWiki.
 
 
 # Notes on Costs
@@ -226,27 +253,21 @@ Based on the following: https://calculator.aws/#/estimate?id=66eaee38f44855524ec
 * Remove ALB - save costs by routing from CloudFront directly to ECS instances
 * Remove NAT Gateways - use VPC Endpoints
 
-Evaluate using lower-memory instance types for Amazon Elasticsearch Service
-
 
 # Open Tasks
 
-* Security: Secure database credentials
-* Teamcity Database Configuration
+* Application specific database credentials
+* AWS Cognito -> ALB integration 
 * Optimize EFS Configuration
+* Update Naming conventions 
 * Update pricing info
-* AWS Cognito -> ALB integration
-* Simplify Deployment process and support multiple teamcity deploys
-* Security: Narrow all roles/permissions
+* Test with multiple teamcity deploys
 * Configure Elasticsearch Service Linked Role as CloudFormation resource
-* Accessibility of ES
-* Investigate autoscaling of build servers, use of docker
+* Accessibility of ES 
 * Networking: Remove NAT Gateways for cost-savings
 * Networking: Change EFS to use security group from service, instead of ECS Security Group
 * Networking: Use a different CIDR range in private subnet from public subnet
-* Networking: Optimize subnets to be minimum possible size
-* Performance: Configure CPU limits on tasks, such that no task can consume an unfair share of the hosts resources
-* Performance: Optimize instance types for ECS and RDS
+* Networking: Optimize subnets to minimum possible size
 
 
 

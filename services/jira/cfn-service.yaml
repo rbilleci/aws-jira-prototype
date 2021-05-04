@@ -159,6 +159,7 @@ Resources:
       HealthyThresholdCount: 3
       Matcher:
         HttpCode: 200-302
+      Name: !Sub ${ServiceName}-${EnvironmentName}
       Port: 80
       Protocol: HTTP
       TargetType: instance

@@ -122,6 +122,7 @@ Resources:
       HealthyThresholdCount: 3
       Matcher:
         HttpCode: 200-302
+      Name: !Sub ${ServiceName}-${EnvironmentName}
       Port: 80
       Protocol: HTTP
       TargetType: instance
@@ -153,24 +154,30 @@ Resources:
             # Database Configuration
             - Name: MEDIAWIKI_DATABASE_HOST
               Value: !Ref RDSEndpointAddress
-            #- Name: MEDIAWIKI_DATABASE_NAME
-            #  Value: mediawiki
+            - Name: MEDIAWIKI_DATABASE_NAME
+              Value: mediawiki
             - Name: MEDIAWIKI_DATABASE_USER
               Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::username}}"
             - Name: MEDIAWIKI_DATABASE_PASSWORD
               Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::password}}"
-            #- Name: MEDIAWIKI_HOST
-            #  Value: !Ref ServiceDomainName
+            - Name: MEDIAWIKI_HOST
+              Value: !Ref ServiceDomainName
             - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
-              Value: 80 #!Ref ContainerPort
-            #- Name: MEDIAWIKI_EXTERNAL_HTTPS_PORT_NUMBER
-            #  Value: 443
-            #- Name: MEDIAWIKI_ENABLE_HTTPS
-            #  Value: no
-            #- Name: MEDIAWIKI_USERNAME
-            #  Value: mediawiki
-            #- Name: MEDIAWIKI_PASSWORD
-            #  Value: mediawiki
+              Value: 80
+            - Name: MEDIAWIKI_EXTERNAL_HTTPS_PORT_NUMBER
+              Value: 443
+            - Name: MEDIAWIKI_ENABLE_HTTPS
+              Value: yes
+            - Name: MEDIAWIKI_SMTP_HOST
+              Value: !Sub "{{resolve:ssm:${SMTPHostParameter}}}"
+            - Name: MEDIAWIKI_SMTP_HOST_ID
+              Value: !Sub "{{resolve:ssm:${SMTPHostIDParameter}}}"
+            - Name: MEDIAWIKI_SMTP_PORT
+              Value: !Sub "{{resolve:ssm:${SMTPPortParameter}}}"
+            - Name: MEDIAWIKI_SMTP_USER
+              Value: !Sub "{{resolve:ssm:${SMTPUserParameter}}}"
+            - Name: MEDIAWIKI_SMTP_PASSWORD
+              Value: !Sub "{{resolve:ssm:${SMTPPasswordParameter}}}"
           Essential: true
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
           LogConfiguration:
@@ -179,24 +186,24 @@ Resources:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
           Memory: !Ref ContainerMemory
-          #          MountPoints:
-          #            - SourceVolume: efs-mediawiki-data
-          #              ContainerPath: /bitnami/mediawiki
+          MountPoints:
+            - SourceVolume: efs-mediawiki-data
+              ContainerPath: /bitnami/mediawiki
           Name: !Sub ${ServiceName}
           PortMappings:
             - ContainerPort: !Ref ContainerPort
       ExecutionRoleArn: !Ref TaskExecutionRole
       Family: !Sub ${ServiceName}
       TaskRoleArn: !Ref TaskRole
-      #Volumes:
-      #  - EFSVolumeConfiguration:
-      #      AuthorizationConfig:
-      #        IAM: ENABLED
-      #        AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
-      #      FilesystemId: !GetAtt EFS.Outputs.ID
-      #      RootDirectory: /
-      #      TransitEncryption: ENABLED
-      #    Name: efs-mediawiki-data
+      Volumes:
+        - EFSVolumeConfiguration:
+            AuthorizationConfig:
+              IAM: ENABLED
+              AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
+            FilesystemId: !GetAtt EFS.Outputs.ID
+            RootDirectory: /
+            TransitEncryption: ENABLED
+          Name: efs-mediawiki-data
 
   EFS:
     Type: AWS::CloudFormation::Stack
@@ -266,3 +273,40 @@ Resources:
           OwnerUid: "1001"
           Permissions: "750"
         Path: /
+
+  # Service Parameters
+
+  SMTPUserParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/user
+      Type: String
+      Value: user
+
+  SMTPPasswordParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/password
+      Type: String
+      Value: password
+
+  SMTPHostParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/host
+      Type: String
+      Value: smtp.gmail.com
+
+  SMTPHostIDParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/host-id
+      Type: String
+      Value: test.com
+
+  SMTPPortParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/port
+      Type: String
+      Value: 587

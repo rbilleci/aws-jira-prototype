@@ -54,7 +54,7 @@ Resources:
   DefaultTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub default-tg-${EnvironmentName}
+      Name: !Sub default-${EnvironmentName}
       Port: 443
       Protocol: HTTPS
       ProtocolVersion: HTTP2
