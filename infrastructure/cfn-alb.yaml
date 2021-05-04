@@ -22,7 +22,7 @@ Resources:
   LB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub alb-${EnvironmentName}
+      Name: !Sub ${EnvironmentName}
       Subnets: !Ref PublicSubnets
       SecurityGroups: [ !Ref SecurityGroup ]
       Type: application
@@ -62,11 +62,15 @@ Resources:
 
 Outputs:
 
-  DNSName:
+  DomainName:
     Description: The URL of the LB
     Value: !GetAtt LB.DNSName
 
-  Listener:
+  LoadBalancerARN:
+    Description: The URL of the LB
+    Value: !Ref LB
+
+  ListenerARN:
     Description: A reference to a port 80 listener
     Value: !Ref Listener
 

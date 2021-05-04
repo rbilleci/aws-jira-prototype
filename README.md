@@ -202,11 +202,10 @@ Evaluate using lower-memory instance types for Amazon Elasticsearch Service
 
 # Open Tasks
 
-* Optimize EFS Configuration
-* Update pricing info  
-* Teamcity Database Configuration
 * Security: Secure database credentials
-* Security: Setup database connection information in parameters, or use a dns name to access it
+* Teamcity Database Configuration
+* Optimize EFS Configuration
+* Update pricing info
 * AWS Cognito -> ALB integration
 * Simplify Deployment process and support multiple teamcity deploys
 * Security: Narrow all roles/permissions

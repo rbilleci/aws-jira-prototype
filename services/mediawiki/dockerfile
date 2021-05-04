@@ -1,0 +1,1 @@
+FROM bitnami/mediawiki:1.35.2

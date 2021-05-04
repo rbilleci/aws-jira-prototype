@@ -91,15 +91,20 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ecs-security-group
 
-  LoadBalancerDNSName:
-    Value: !GetAtt ALB.Outputs.DNSName
+  LoadBalancerARN:
+    Value: !GetAtt ALB.Outputs.LoadBalancerARN
     Export:
-      Name: !Sub ${AWS::StackName}-load-balancer-dns-name
+      Name: !Sub ${AWS::StackName}-alb-arn
 
-  Listener:
-    Value: !GetAtt ALB.Outputs.Listener
+  LoadBalancerDNSName:
+    Value: !GetAtt ALB.Outputs.DomainName
     Export:
-      Name: !Sub ${AWS::StackName}-listener
+      Name: !Sub ${AWS::StackName}-alb-domain-name
+
+  LoadBalancerListener:
+    Value: !GetAtt ALB.Outputs.ListenerARN
+    Export:
+      Name: !Sub ${AWS::StackName}-alb-listener-arn
 
   PublicSubnets:
     Value: !GetAtt VPC.Outputs.PublicSubnets

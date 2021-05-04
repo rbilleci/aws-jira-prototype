@@ -17,8 +17,24 @@ Parameters:
     Type: Number
     Default: 8080
 
+  Cluster:
+    Description: Name of the ECS Cluster
+    Type: String
+
+  ECSSecurityGroup:
+    Description: Security Group ID used by ECS Cluster
+    Type: String
+
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
+    Type: String
+
+  LoadBalancerDomainName:
+    Description: Internal DNS name of AWS Load Balancer
+    Type: String
+
+  LoadBalancerListenerARN:
+    Description: ARN of the Load Balancer Listener
     Type: String
 
   ServiceDomainName:
@@ -36,6 +52,10 @@ Parameters:
     Type: Number
     Default: 12
 
+  RDSEndpointAddress:
+    Description: DNS name of RDS Database
+    Type: String
+
   RDSUsername:
     Description: Username for database
     Type: String
@@ -47,6 +67,14 @@ Parameters:
     Type: String
     Default: password
     NoEcho: true
+
+  VPC:
+    Description: VPC Id
+    Type: AWS::EC2::VPC::Id
+
+  VPCPrivateSubnets:
+    Description: List of subnet ids used for the VPC
+    Type: String
 
 Resources:
 
@@ -77,9 +105,7 @@ Resources:
               OriginKeepaliveTimeout: 30
               OriginProtocolPolicy: https-only
               OriginReadTimeout: 60
-            DomainName:
-              Fn::ImportValue:
-                !Sub ${EnvironmentName}-load-balancer-dns-name
+            DomainName: !Ref LoadBalancerDomainName
             Id: !Ref ServiceName
         PriceClass: PriceClass_All
         ViewerCertificate:
@@ -89,9 +115,7 @@ Resources:
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
-      ListenerArn:
-        Fn::ImportValue:
-          !Sub ${EnvironmentName}-listener
+      ListenerArn: !Ref LoadBalancerListenerARN
       Priority: !Ref ServicePriority
       Conditions:
         - Field: host-header
@@ -114,17 +138,13 @@ Resources:
       Protocol: HTTP
       TargetType: instance
       UnhealthyThresholdCount: 6
-      VpcId:
-        Fn::ImportValue:
-          !Sub ${EnvironmentName}-vpc
+      VpcId: !Ref VPC
 
   Service:
     DependsOn: ListenerRule
     Type: AWS::ECS::Service
     Properties:
-      Cluster:
-        Fn::ImportValue:
-          !Sub ${EnvironmentName}-ecs-cluster
+      Cluster: !Ref Cluster
       DeploymentConfiguration:
         MaximumPercent: 100
         MinimumHealthyPercent: 0
@@ -144,69 +164,61 @@ Resources:
         - Environment:
             # Database Configuration
             - Name: MEDIAWIKI_DATABASE_HOST
-              Value:
-                Fn::ImportValue:
-                  !Sub ${EnvironmentName}-rds-endpoint-address
-            - Name: MEDIAWIKI_DATABASE_NAME
-              Value: mediawiki
+              Value: !Ref RDSEndpointAddress
+            #- Name: MEDIAWIKI_DATABASE_NAME
+            #  Value: mediawiki
             - Name: MEDIAWIKI_DATABASE_USER
               Value: !Ref RDSUsername
             - Name: MEDIAWIKI_DATABASE_PASSWORD
               Value: !Ref RDSPassword
-            - Name: MEDIAWIKI_HOST
-              Value: !Ref ServiceDomainName
+            #- Name: MEDIAWIKI_HOST
+            #  Value: !Ref ServiceDomainName
             - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
-              Value: !Ref ContainerPort
-            - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
-              Value: 443
-            - Name: MEDIAWIKI_ENABLE_HTTPS
-              Value: yes
-            - Name: MEDIAWIKI_USERNAME
-              Value: mediawiki
-            - Name: MEDIAWIKI_PASSWORD
-              Value: mediawiki
+              Value: 80 #!Ref ContainerPort
+            #- Name: MEDIAWIKI_EXTERNAL_HTTPS_PORT_NUMBER
+            #  Value: 443
+            #- Name: MEDIAWIKI_ENABLE_HTTPS
+            #  Value: no
+            #- Name: MEDIAWIKI_USERNAME
+            #  Value: mediawiki
+            #- Name: MEDIAWIKI_PASSWORD
+            #  Value: mediawiki
           Essential: true
-          Image: bitnami/mediawiki:1.35.2
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
           Memory: !Ref ContainerMemory
-#          MountPoints:
-#            - SourceVolume: efs-mediawiki-data
-#              ContainerPath: /bitnami/mediawiki
+          #          MountPoints:
+          #            - SourceVolume: efs-mediawiki-data
+          #              ContainerPath: /bitnami/mediawiki
           Name: !Sub ${ServiceName}
           PortMappings:
             - ContainerPort: !Ref ContainerPort
       ExecutionRoleArn: !Ref TaskExecutionRole
       Family: !Sub ${ServiceName}
       TaskRoleArn: !Ref TaskRole
-      Volumes:
-        - EFSVolumeConfiguration:
-            AuthorizationConfig:
-              IAM: ENABLED
-              AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
-            FilesystemId: !GetAtt EFS.Outputs.ID
-            RootDirectory: /
-            TransitEncryption: ENABLED
-          Name: efs-mediawiki-data
+      #Volumes:
+      #  - EFSVolumeConfiguration:
+      #      AuthorizationConfig:
+      #        IAM: ENABLED
+      #        AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
+      #      FilesystemId: !GetAtt EFS.Outputs.ID
+      #      RootDirectory: /
+      #      TransitEncryption: ENABLED
+      #    Name: efs-mediawiki-data
 
   EFS:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ../../components/cfn-efs.yaml
       Parameters:
-        ECSSecurityGroup:
-          Fn::ImportValue:
-            !Sub ${EnvironmentName}-ecs-security-group
+        ECSSecurityGroup: !Ref ECSSecurityGroup
         FilesystemName: !Sub ${ServiceName}
-        PrivateSubnets:
-          Fn::ImportValue:
-            !Sub ${EnvironmentName}-private-subnets
-        VPC:
-          Fn::ImportValue:
-            !Sub ${EnvironmentName}-vpc
+        PrivateSubnets: !Ref VPCPrivateSubnets
+        VPC: !Ref VPC
 
   LogGroup:
     Type: AWS::Logs::LogGroup
