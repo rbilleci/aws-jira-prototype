@@ -52,7 +52,7 @@ Resources:
   #      Parameters:
   #        EnvironmentName: !Ref AWS::StackName
   #        ElasticsearchVersion: 7.8
-  #        InstanceType: t3.small.elasticsearch
+  #        InstanceType: r5.xlarge
   #        InstanceCount: 1
   #        Subnets: !GetAtt VPC.Outputs.PublicSubnets
   #        VolumeSize: 100
@@ -67,17 +67,49 @@ Resources:
         VpcCIDR: 10.180.0.0/16
         PublicSubnet1CIDR: 10.180.0.0/21
         PublicSubnet2CIDR: 10.180.8.0/21
-        PublicSubnet3CIDR: 10.180.16.0/21
         PrivateSubnet1CIDR: 10.180.64.0/21
         PrivateSubnet2CIDR: 10.180.72.0/21
-        PrivateSubnet3CIDR: 10.180.80.0/21
+
+  # Secrets
+
+  RDSJiraSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for database user
+      GenerateSecretString:
+        GenerateStringKey: password
+        ExcludePunctuation: true
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 16
+        SecretStringTemplate: '{ "username": "jira" }'
+      Name: !Sub /${AWS::StackName}/rds/jira/credentials
+
+  RDSTeamCitySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for database user
+      GenerateSecretString:
+        GenerateStringKey: password
+        ExcludePunctuation: true
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 16
+        SecretStringTemplate: '{ "username": "teamcity" }'
+      Name: !Sub /${AWS::StackName}/rds/teamcity/credentials
+
+  RDSMediaWikiSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for database user
+      GenerateSecretString:
+        GenerateStringKey: password
+        ExcludePunctuation: true
+        ExcludeCharacters: '"@/\'
+        PasswordLength: 16
+        SecretStringTemplate: '{ "username": "mediawiki" }'
+      Name: !Sub /${AWS::StackName}/rds/mediawiki/credentials
 
 Outputs:
 
-  RDSEndpointAddress:
-    Value: !GetAtt RDS.Outputs.EndpointAddress
-    Export:
-      Name: !Sub ${AWS::StackName}-rds-endpoint-address
 
   ECSCluster:
     Value: !GetAtt ECS.Outputs.Cluster
@@ -113,6 +145,16 @@ Outputs:
     Value: !GetAtt VPC.Outputs.PrivateSubnets
     Export:
       Name: !Sub ${AWS::StackName}-private-subnets
+
+  RDSEndpointAddress:
+    Value: !GetAtt RDS.Outputs.EndpointAddress
+    Export:
+      Name: !Sub ${AWS::StackName}-rds-endpoint-address
+
+  RDSID:
+    Value: !GetAtt RDS.Outputs.ID
+    Export:
+      Name: !Sub ${AWS::StackName}-rds-id
 
   VPC:
     Value: !GetAtt VPC.Outputs.VPC

@@ -21,6 +21,10 @@ Parameters:
     Description: Name of the ECS Cluster
     Type: String
 
+  DB:
+    Description: RDS DB Id
+    Type: String
+
   ECSSecurityGroup:
     Description: Security Group ID used by ECS Cluster
     Type: String
@@ -152,7 +156,7 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 20
+      HealthCheckIntervalSeconds: 30
       HealthCheckPath: /status
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
@@ -163,7 +167,7 @@ Resources:
       Port: 80
       Protocol: HTTP
       TargetType: instance
-      UnhealthyThresholdCount: 6
+      UnhealthyThresholdCount: 10
       VpcId: !Ref VPC
 
   Service:
@@ -209,9 +213,9 @@ Resources:
             - Name: ATL_JDBC_URL
               Value: !Sub jdbc:mysql://${RDSEndpointAddress}:3306/jira
             - Name: ATL_JDBC_USER
-              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::username}}"
+              Value: !Sub "{{resolve:secretsmanager:/apps-mvsm-io/rds/${ServiceName}/credentials::username}}"
             - Name: ATL_JDBC_PASSWORD
-              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/credentials::password}}"
+              Value: !Sub "{{resolve:secretsmanager:/apps-mvsm-io/rds/${ServiceName}/credentials::password}}"
             - Name: ATL_DB_DRIVER
               Value: com.mysql.jdbc.Driver
             - Name: ATL_DB_TYPE

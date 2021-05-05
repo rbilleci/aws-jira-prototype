@@ -67,13 +67,6 @@ Resources:
       SecurityGroups: [ !Ref EFSSecurityGroup ]
       SubnetId: !Select [ 1, !Ref PrivateSubnets ]
 
-  EFSMT3:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref EFS
-      SecurityGroups: [ !Ref EFSSecurityGroup ]
-      SubnetId: !Select [ 2, !Ref PrivateSubnets ]
-
 Outputs:
 
   ID:

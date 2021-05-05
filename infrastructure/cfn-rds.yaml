@@ -29,9 +29,10 @@ Resources:
       GenerateSecretString:
         GenerateStringKey: password
         ExcludeCharacters: '"@/\'
+        ExcludePunctuation: true
         PasswordLength: 16
         SecretStringTemplate: '{ "username": "root" }'
-      Name: !Sub /${EnvironmentName}/rds/credentials
+      Name: !Sub /${EnvironmentName}/rds/root/credentials
 
   DB:
     DependsOn: [ DBSecret ]
@@ -39,17 +40,18 @@ Resources:
     Properties:
       AllocatedStorage: 100
       AllowMajorVersionUpgrade: false
-      AutoMinorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
       CopyTagsToSnapshot: true
       DBInstanceClass: !Ref InstanceType
+      DBInstanceIdentifier: !Ref EnvironmentName
       DBSubnetGroupName: !Ref DBSubnetGroup
       DeleteAutomatedBackups: false
       DeletionProtection: false
       EnableIAMDatabaseAuthentication: false
       EnablePerformanceInsights: false
       Engine: mysql
-      EngineVersion: 8.0.21
+      EngineVersion: 8.0.23
       MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}::username}}"
       MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}::password}}"
       MultiAZ: !Ref MultiAZ
@@ -87,8 +89,12 @@ Resources:
 
 Outputs:
 
+  ID:
+    Description: Id of the database
+    Value: !Ref DB
+
   EndpointAddress:
-    Description: A reference to the DB Database
+    Description: Endpoint address of the database
     Value: !GetAtt DB.Endpoint.Address
 
   SecurityGroup:

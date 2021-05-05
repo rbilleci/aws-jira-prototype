@@ -13,9 +13,11 @@ CFN_LOAD_BALANCER_DOMAIN_NAME=$(aws cloudformation list-exports --query "Exports
 CFN_LOAD_BALANCER_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-alb-arn\`].Value" --output text)
 CFN_LISTENER_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-alb-listener-arn\`].Value" --output text)
 CFN_RDS_ENDPOINT_ADDRESS=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-rds-endpoint-address\`].Value" --output text)
+CFN_RDS_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-rds-id\`].Value" --output text)
 CFN_ECS_SECURITY_GROUP=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-ecs-security-group\`].Value" --output text)
 CFN_PUBLIC_SUBNETS=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-public-subnets\`].Value" --output text)
 CFN_PRIVATE_SUBNETS=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-private-subnets\`].Value" --output text)
+
 
 # Print parameters
 set | grep CFN_
@@ -31,6 +33,7 @@ aws cloudformation package --template-file cfn-service.yaml --output-template pa
 aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides \
   CloudFrontCertificateArn=${CFN_CLOUD_FRONT_CERTIFICATE_ARN} \
   Cluster=${CFN_STACK} \
+  DB=${CFN_RDS_ID} \
   ECSSecurityGroup=${CFN_ECS_SECURITY_GROUP} \
   EnvironmentName=${CFN_STACK} \
   LoadBalancerDomainName=${CFN_LOAD_BALANCER_DOMAIN_NAME} \

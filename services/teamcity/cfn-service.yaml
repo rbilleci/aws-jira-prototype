@@ -21,6 +21,10 @@ Parameters:
     Description: Name of the ECS Cluster
     Type: String
 
+  DB:
+    Description: RDS DB Id
+    Type: String
+
   ECSSecurityGroup:
     Description: Security Group ID used by ECS Cluster
     Type: String
