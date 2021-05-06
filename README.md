@@ -90,28 +90,25 @@ Create the MySQL databases and users for the applications, with the following st
 
         # Fetch the RDS root credentials from the Secrets Manager
         sudo su ec2-user
-        sudo yum -y install aws-cli jq
         ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
-        REGION="`echo \"$ZONE\" | sed 's/[a-z]$//'`"
-        RDS_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /apps-mvsm-io/rds/root/credentials --region $REGION --query SecretString --output text | jq -r '.password')
+        RDS_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /${DOMAIN}/rds/root/credentials --region $REGION --query SecretString --output text | jq -r '.password')
         # TeamCity
-        TEAM_CITY_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /apps-mvsm-io/rds/teamcity/credentials --region $REGION --query SecretString --output text | jq -r '.password')
+        TEAM_CITY_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /${DOMAIN}/rds/teamcity/credentials --region $REGION --query SecretString --output text | jq -r '.password')
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS teamcity CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE USER teamcity IDENTIFIED BY '${TEAM_CITY_PASSWORD}'"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "GRANT ALL PRIVILEGES on teamcity.* TO 'teamcity'@'%'"   
         # MediaWiki
-        MEDIAWIKI_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /apps-mvsm-io/rds/mediawiki/credentials --region $REGION --query SecretString --output text | jq -r '.password')
+        MEDIAWIKI_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /${DOMAIN}/rds/mediawiki/credentials --region $REGION --query SecretString --output text | jq -r '.password')
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS mediawiki CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE USER mediawiki IDENTIFIED BY '${MEDIAWIKI_PASSWORD}'"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "GRANT ALL PRIVILEGES on mediawiki.* TO 'mediawiki'@'%'"   
         # JIRA
-        JIRA_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /apps-mvsm-io/rds/jira/credentials --region $REGION --query SecretString --output text | jq -r '.password')
+        JIRA_PASSWORD=$(aws secretsmanager get-secret-value --secret-id /${DOMAIN}/rds/jira/credentials --region $REGION --query SecretString --output text | jq -r '.password')
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS jira CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "CREATE USER jira IDENTIFIED BY '${JIRA_PASSWORD}'"
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "GRANT ALL PRIVILEGES on jira.* TO 'jira'@'%'"
         # Flush
         mysql -h ${RDS_ENDPOINT_ADDRESS} -u root -p"$RDS_PASSWORD" -e "FLUSH privileges;"
-
 
 ---
 
@@ -205,10 +202,10 @@ The wizard will ask you for the Wizard Token. This token can be found in the log
 3. Select the latest log stream and open it
 4. Scroll to the last log entry and expand it. It should look something like the follow:
 
-      JetBrains Upsource 2020.1 Configuration Wizard will listen inside container on 
-      {0.0.0.0:8080}/ after start and can be accessed by URL 
-      [http://<put-your-docker-HOST-name-here>:<put-host-port-mapped-to-container-port-8080-here>
-      /?wizard_token=XXXXXXXXXXXXXXX] 
+   JetBrains Upsource 2020.1 Configuration Wizard will listen inside container on {0.0.0.0:8080}/ after start and can be
+   accessed by URL
+   [http://<put-your-docker-HOST-name-here>:<put-host-port-mapped-to-container-port-8080-here>
+   /?wizard_token=XXXXXXXXXXXXXXX]
 
 ## Step 10 - MediaWiki
 
