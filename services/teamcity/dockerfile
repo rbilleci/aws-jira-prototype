@@ -1,6 +1,6 @@
 FROM jetbrains/teamcity-server
 
-ENV MYSQL_CONNECTOR_VERSION=mysql-connector-java-8.0.22
+ENV MYSQL_CONNECTOR_VERSION=mysql-connector-java-8.0.24
 
 WORKDIR /tmp
 

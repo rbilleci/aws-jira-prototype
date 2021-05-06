@@ -213,9 +213,9 @@ Resources:
             - Name: ATL_JDBC_URL
               Value: !Sub jdbc:mysql://${RDSEndpointAddress}:3306/jira
             - Name: ATL_JDBC_USER
-              Value: !Sub "{{resolve:secretsmanager:/apps-mvsm-io/rds/${ServiceName}/credentials::username}}"
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::username}}"
             - Name: ATL_JDBC_PASSWORD
-              Value: !Sub "{{resolve:secretsmanager:/apps-mvsm-io/rds/${ServiceName}/credentials::password}}"
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::password}}"
             - Name: ATL_DB_DRIVER
               Value: com.mysql.jdbc.Driver
             - Name: ATL_DB_TYPE
