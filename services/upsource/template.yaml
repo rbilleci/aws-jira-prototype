@@ -10,7 +10,7 @@ Parameters:
   ContainerMemory:
     Description: Memory for Container
     Type: Number
-    Default: 3968
+    Default: 8192
 
   ContainerPort:
     Description: Port of Container
@@ -21,13 +21,18 @@ Parameters:
     Description: Name of the ECS Cluster
     Type: String
 
-  DB:
-    Description: RDS DB Id
-    Type: String
-
   ECSSecurityGroup:
     Description: Security Group ID used by ECS Cluster
     Type: String
+
+  EFSProvisionedThroughput:
+    Type: String
+    Description: |
+      By default, the Elastic File System is configured to use "bursting" mode.
+      Optionally you can provision a minimum throughput, but you should only
+      change this value if you aware of the cost impacts. See: https://aws.amazon.com/efs/pricing/
+    AllowedValues: [ "", 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 ]
+    Default: ""
 
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
@@ -48,17 +53,21 @@ Parameters:
   ServiceDomainName:
     Description: Domain Name of the Service, for example; upsource.example.com
     Type: String
-    Default: jira.example.com
+    Default: upsource.example.com
+
+  ServiceImage:
+    Description: Docker image of Service, for example; 000000000000.dkr.ecr.eu-west-1.amazonaws.com/service:latest
+    Type: String
 
   ServiceName:
     Description: Name of the Service
     Type: String
-    Default: jira
+    Default: upsource
 
   ServicePriority:
     Description: Priority for Application Load Balancer Listener
     Type: Number
-    Default: 10
+    Default: 11
 
   VPC:
     Description: VPC Id
@@ -82,16 +91,16 @@ Resources:
             CachePolicyId: !Ref CloudFrontStaticContentPolicy
             Compress: true
             OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
-            PathPattern: "/s/*"
+            PathPattern: "*/assets/*"
             SmoothStreaming: false
             TargetOriginId: !Ref ServiceName
             ViewerProtocolPolicy: redirect-to-https
           - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
             CachedMethods: [ GET, HEAD, OPTIONS ]
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # cache optimized
+            CachePolicyId: !Ref CloudFrontStaticContentPolicy
             Compress: true
             OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
-            PathPattern: "/images/*"
+            PathPattern: "*/frontend/*"
             SmoothStreaming: false
             TargetOriginId: !Ref ServiceName
             ViewerProtocolPolicy: redirect-to-https
@@ -156,8 +165,8 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 30
-      HealthCheckPath: /status
+      HealthCheckIntervalSeconds: 20
+      HealthCheckPath: /
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 3
@@ -167,7 +176,7 @@ Resources:
       Port: 80
       Protocol: HTTP
       TargetType: instance
-      UnhealthyThresholdCount: 10
+      UnhealthyThresholdCount: 6
       VpcId: !Ref VPC
 
   Service:
@@ -191,39 +200,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       ContainerDefinitions:
-        - Environment:
-            # File
-            - Name: JIRA_HOME
-              Value: /var/efs
-            # JVM Settings
-            - Name: JVM_MINIMUM_MEMORY
-              Value: 3072m
-            - Name: JVM_MAXIMUM_MEMORY
-              Value: 3072m
-            - Name: JVM_RESERVED_CODE_CACHE_SIZE
-              Value: 512m
-            # Reverse Proxy Settings
-            - Name: ATL_PROXY_NAME
-              Value: !Ref ServiceDomainName
-            - Name: ATL_PROXY_PORT
-              Value: 443
-            - Name: ATL_TOMCAT_SCHEME
-              Value: https
-            # Database Settings
-            - Name: ATL_JDBC_URL
-              Value: !Sub jdbc:mysql://${RDSEndpointAddress}:3306/jira
-            - Name: ATL_JDBC_USER
-              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::username}}"
-            - Name: ATL_JDBC_PASSWORD
-              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::password}}"
-            - Name: ATL_DB_DRIVER
-              Value: com.mysql.jdbc.Driver
-            - Name: ATL_DB_TYPE
-              Value: mysql
-            - Name: ATL_DB_SCHEMA_NAME
-              Value: ''
-          Essential: true
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
+        - Essential: true
+          Image: !Ref ServiceImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -231,8 +209,12 @@ Resources:
               awslogs-region: !Ref AWS::Region
           Memory: !Ref ContainerMemory
           MountPoints:
-            - SourceVolume: efs
-              ContainerPath: /var/efs
+            - SourceVolume: efs-data
+              ContainerPath: /opt/upsource/data
+            - SourceVolume: efs-conf
+              ContainerPath: /opt/upsource/conf
+            - SourceVolume: efs-backups
+              ContainerPath: /opt/upsource/backups
           Name: !Sub ${ServiceName}
           PortMappings:
             - ContainerPort: !Ref ContainerPort
@@ -243,10 +225,27 @@ Resources:
         - EFSVolumeConfiguration:
             AuthorizationConfig:
               IAM: ENABLED
+              AccessPointId: !GetAtt EFSDataAccessPoint.AccessPointId
             FilesystemId: !GetAtt EFS.Outputs.ID
             RootDirectory: /
             TransitEncryption: ENABLED
-          Name: efs
+          Name: efs-data
+        - EFSVolumeConfiguration:
+            AuthorizationConfig:
+              IAM: ENABLED
+              AccessPointId: !GetAtt EFSConfAccessPoint.AccessPointId
+            FilesystemId: !GetAtt EFS.Outputs.ID
+            RootDirectory: /
+            TransitEncryption: ENABLED
+          Name: efs-conf
+        - EFSVolumeConfiguration:
+            AuthorizationConfig:
+              IAM: ENABLED
+              AccessPointId: !GetAtt EFSBackupsAccessPoint.AccessPointId
+            FilesystemId: !GetAtt EFS.Outputs.ID
+            RootDirectory: /
+            TransitEncryption: ENABLED
+          Name: efs-backups
 
   EFS:
     Type: AWS::CloudFormation::Stack
@@ -254,6 +253,7 @@ Resources:
       TemplateURL: ../../components/cfn-efs.yaml
       Parameters:
         ECSSecurityGroup: !Ref ECSSecurityGroup
+        EFSProvisionedThroughput: !Ref EFSProvisionedThroughput
         FilesystemName: !Sub ${ServiceName}
         PrivateSubnets: !Ref VPCPrivateSubnets
         VPC: !Ref VPC
@@ -305,3 +305,36 @@ Resources:
               - Action: [ elasticfilesystem:* ]
                 Effect: Allow
                 Resource: "*"
+
+  EFSDataAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "13001"
+          OwnerUid: "13001"
+          Permissions: "750"
+        Path: /data
+
+  EFSConfAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "13001"
+          OwnerUid: "13001"
+          Permissions: "750"
+        Path: /conf
+
+  EFSBackupsAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !GetAtt EFS.Outputs.ID
+      RootDirectory:
+        CreationInfo:
+          OwnerGid: "13001"
+          OwnerUid: "13001"
+          Permissions: "750"
+        Path: /backups

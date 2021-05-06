@@ -1,15 +1,10 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: ECR for service
+Description: ECR
 Parameters:
 
-  EnvironmentName:
-    Description: An environment name that will be prefixed to resource names
+  RepositoryName:
+    Description: Name of the ECR Repository
     Type: String
-
-  ServiceName:
-    Description: Name of the Service
-    Type: String
-    Default: myservice
 
 Resources:
 
@@ -18,4 +13,4 @@ Resources:
     Properties:
       ImageScanningConfiguration:
         scanOnPush: false
-      RepositoryName: !Sub ${EnvironmentName}-${ServiceName}
+      RepositoryName: !Ref RepositoryName
