@@ -10,12 +10,12 @@ Parameters:
   ContainerMemory:
     Description: Memory for Container
     Type: Number
-    Default: 1024
+    Default: 3768
 
   ContainerPort:
     Description: Port of Container
     Type: Number
-    Default: 8080
+    Default: 8111
 
   Cluster:
     Description: Name of the ECS Cluster
@@ -57,17 +57,21 @@ Parameters:
   ServiceDomainName:
     Description: Domain Name of the Service, for example; upsource.example.com
     Type: String
-    Default: mediawiki.example.com
+    Default: teamcity.example.com
+
+  ServiceImage:
+    Description: Docker image of Service, for example; 000000000000.dkr.ecr.eu-west-1.amazonaws.com/service:latest
+    Type: String
 
   ServiceName:
     Description: Name of the Service
     Type: String
-    Default: mediawiki
+    Default: teamcity
 
   ServicePriority:
     Description: Priority for Application Load Balancer Listener
     Type: Number
-    Default: 12
+    Default: 8
 
   VPC:
     Description: VPC Id
@@ -85,6 +89,25 @@ Resources:
       DistributionConfig:
         Aliases:
           - !Ref ServiceDomainName
+        CacheBehaviors:
+          - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
+            CachedMethods: [ GET, HEAD, OPTIONS ]
+            CachePolicyId: !Ref CloudFrontStaticContentPolicy
+            Compress: true
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
+            PathPattern: "/s/*"
+            SmoothStreaming: false
+            TargetOriginId: !Ref ServiceName
+            ViewerProtocolPolicy: redirect-to-https
+          - AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
+            CachedMethods: [ GET, HEAD, OPTIONS ]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # cache optimized
+            Compress: true
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # forward all
+            PathPattern: "/images/*"
+            SmoothStreaming: false
+            TargetOriginId: !Ref ServiceName
+            ViewerProtocolPolicy: redirect-to-https
         DefaultCacheBehavior:
           AllowedMethods: [ GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE ]
           CachedMethods: [ GET, HEAD, OPTIONS ]
@@ -113,6 +136,24 @@ Resources:
           AcmCertificateArn: !Ref CloudFrontCertificateArn
           SslSupportMethod: sni-only
 
+  CloudFrontStaticContentPolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        DefaultTTL: 86400
+        MaxTTL: 86400
+        MinTTL: 86400
+        Name: !Sub ${ServiceName}-static-content-policy
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -129,7 +170,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 20
-      HealthCheckPath: /
+      HealthCheckPath: /mnt
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 3
@@ -164,35 +205,11 @@ Resources:
     Properties:
       ContainerDefinitions:
         - Environment:
-            # Database Configuration
-            - Name: MEDIAWIKI_DATABASE_HOST
-              Value: !Ref RDSEndpointAddress
-            - Name: MEDIAWIKI_DATABASE_NAME
-              Value: mediawiki
-            - Name: MEDIAWIKI_DATABASE_USER
-              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::username}}"
-            - Name: MEDIAWIKI_DATABASE_PASSWORD
-              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::password}}"
-            - Name: MEDIAWIKI_HOST
-              Value: !Ref ServiceDomainName
-            - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
-              Value: 80
-            - Name: MEDIAWIKI_EXTERNAL_HTTPS_PORT_NUMBER
-              Value: 443
-            - Name: MEDIAWIKI_ENABLE_HTTPS
-              Value: yes
-            - Name: MEDIAWIKI_SMTP_HOST
-              Value: !Sub "{{resolve:ssm:${SMTPHostParameter}}}"
-            - Name: MEDIAWIKI_SMTP_HOST_ID
-              Value: !Sub "{{resolve:ssm:${SMTPHostIDParameter}}}"
-            - Name: MEDIAWIKI_SMTP_PORT
-              Value: !Sub "{{resolve:ssm:${SMTPPortParameter}}}"
-            - Name: MEDIAWIKI_SMTP_USER
-              Value: !Sub "{{resolve:ssm:${SMTPUserParameter}}}"
-            - Name: MEDIAWIKI_SMTP_PASSWORD
-              Value: !Sub "{{resolve:ssm:${SMTPPasswordParameter}}}"
+            # Memory Configuration
+            - Name: TEAMCITY_SERVER_MEM_OPTS
+              Value: "-Xmx2g -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m"
           Essential: true
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-${ServiceName}:latest
+          Image: !Ref ServiceImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -200,8 +217,8 @@ Resources:
               awslogs-region: !Ref AWS::Region
           Memory: !Ref ContainerMemory
           MountPoints:
-            - SourceVolume: efs-mediawiki-data
-              ContainerPath: /bitnami/mediawiki
+            - SourceVolume: efs
+              ContainerPath: /data/teamcity_server/datadir
           Name: !Sub ${ServiceName}
           PortMappings:
             - ContainerPort: !Ref ContainerPort
@@ -212,11 +229,10 @@ Resources:
         - EFSVolumeConfiguration:
             AuthorizationConfig:
               IAM: ENABLED
-              AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
             FilesystemId: !GetAtt EFS.Outputs.ID
             RootDirectory: /
             TransitEncryption: ENABLED
-          Name: efs-mediawiki-data
+          Name: efs
 
   EFS:
     Type: AWS::CloudFormation::Stack
@@ -276,52 +292,3 @@ Resources:
               - Action: [ elasticfilesystem:* ]
                 Effect: Allow
                 Resource: "*"
-
-  EFSAccessPoint:
-    Type: AWS::EFS::AccessPoint
-    Properties:
-      FileSystemId: !GetAtt EFS.Outputs.ID
-      RootDirectory:
-        CreationInfo:
-          OwnerGid: "1001"
-          OwnerUid: "1001"
-          Permissions: "750"
-        Path: /
-
-
-  # Service Parameters
-
-  SMTPUserParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/user
-      Type: String
-      Value: user
-
-  SMTPPasswordParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/password
-      Type: String
-      Value: password
-
-  SMTPHostParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/host
-      Type: String
-      Value: smtp.gmail.com
-
-  SMTPHostIDParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/host-id
-      Type: String
-      Value: test.com
-
-  SMTPPortParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /${EnvironmentName}/${ServiceName}/smtp/port
-      Type: String
-      Value: 587

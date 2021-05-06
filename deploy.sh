@@ -1,46 +1,67 @@
 #!/bin/bash
 
-# set the parameters
-CFN_SERVICE=$1
-CFN_BUCKET=${CFN_DOMAIN}-template
-CFN_STACK=`echo $CFN_DOMAIN | tr . -`
-CFN_CLOUD_FRONT_CERTIFICATE_ARN=$(aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName==\`*.${CFN_DOMAIN}\`].CertificateArn" --output text)
-CFN_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-CFN_REGION=$(aws configure get region)
-CFN_SERVICE_DOMAIN_NAME=${CFN_SERVICE}.${CFN_DOMAIN}
-CFN_VPC=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-vpc\`].Value" --output text)
-CFN_LOAD_BALANCER_DOMAIN_NAME=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-alb-domain-name\`].Value" --output text)
-CFN_LOAD_BALANCER_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-alb-arn\`].Value" --output text)
-CFN_LISTENER_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-alb-listener-arn\`].Value" --output text)
-CFN_RDS_ENDPOINT_ADDRESS=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-rds-endpoint-address\`].Value" --output text)
-CFN_RDS_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-rds-id\`].Value" --output text)
-CFN_ECS_SECURITY_GROUP=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-ecs-security-group\`].Value" --output text)
-CFN_PUBLIC_SUBNETS=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-public-subnets\`].Value" --output text)
-CFN_PRIVATE_SUBNETS=$(aws cloudformation list-exports --query "Exports[?Name==\`${CFN_STACK}-private-subnets\`].Value" --output text)
+# Determine service and environment
+SERVICE_NAME=$1
+STACK_NAME=`echo ${DOMAIN} | tr . -`
 
+# Set Variables
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ALB_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-alb-arn\`].Value" --output text)
+ALB_DOMAIN_NAME=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-alb-domain-name\`].Value" --output text)
+ALB_LISTENER_ARN=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-alb-listener-arn\`].Value" --output text)
+BUCKET_NAME=${DOMAIN}-template
+CERTIFICATE_ARN=$(aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName==\`*.${DOMAIN}\`].CertificateArn" --output text)
+ECS_SECURITY_GROUP=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-ecs-security-group\`].Value" --output text)
+PUBLIC_SUBNETS=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-public-subnets\`].Value" --output text)
+PRIVATE_SUBNETS=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-private-subnets\`].Value" --output text)
+RDS_ENDPOINT_ADDRESS=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-rds-endpoint-address\`].Value" --output text)
+RDS_ID=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-rds-id\`].Value" --output text)
+REGION=$(aws configure get region)
+SERVICE_DOMAIN_NAME=${SERVICE_NAME}.${DOMAIN}
+VPC=$(aws cloudformation list-exports --query "Exports[?Name==\`${STACK_NAME}-vpc\`].Value" --output text)
 
-# Print parameters
-set | grep CFN_
+# ECR: deploy the repository
+DOCKER_REPOSITORY=${SERVICE_NAME}
+DOCKER_REGISTRY=${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
+TIMESTAMP=`date +%s`
+aws cloudformation deploy --template-file components/cfn-ecr.yaml \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --stack-name ${STACK_NAME}-${SERVICE_NAME}-ecr \
+  --parameter-overrides RepositoryName=${DOCKER_REPOSITORY}
 
-aws cloudformation deploy --template-file components/cfn-ecr.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE}-ecr --parameter-overrides ServiceName=${CFN_SERVICE} EnvironmentName=${CFN_STACK}
-cd services/${CFN_SERVICE}
-docker build -t ${CFN_SERVICE} .
-CFN_TAG=$(docker images ${CFN_SERVICE} -q)
-aws ecr get-login-password --region ${CFN_REGION} | docker login --username AWS --password-stdin ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com
-docker tag ${CFN_TAG} ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-docker push ${CFN_ACCOUNT}.dkr.ecr.${CFN_REGION}.amazonaws.com/${CFN_STACK}-${CFN_SERVICE}
-aws cloudformation package --template-file cfn-service.yaml --output-template packaged.yaml --s3-bucket ${CFN_BUCKET}
-aws cloudformation deploy --template-file packaged.yaml --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --stack-name ${CFN_STACK}-${CFN_SERVICE} --parameter-overrides \
-  CloudFrontCertificateArn=${CFN_CLOUD_FRONT_CERTIFICATE_ARN} \
-  Cluster=${CFN_STACK} \
-  DB=${CFN_RDS_ID} \
-  ECSSecurityGroup=${CFN_ECS_SECURITY_GROUP} \
-  EnvironmentName=${CFN_STACK} \
-  LoadBalancerDomainName=${CFN_LOAD_BALANCER_DOMAIN_NAME} \
-  LoadBalancerListenerARN=${CFN_LISTENER_ARN} \
-  RDSEndpointAddress=${CFN_RDS_ENDPOINT_ADDRESS} \
-  ServiceDomainName=${CFN_SERVICE_DOMAIN_NAME} \
-  ServiceName=${CFN_SERVICE} \
-  VPC=${CFN_VPC} \
-  VPCPrivateSubnets=${CFN_PRIVATE_SUBNETS}
+# ECR: build and tag the image locally
+# use a unique local tag based on the timestamp, but the image id as the tag for remote deployment
+cd services/${SERVICE_NAME}
+docker build -t ${DOCKER_REPOSITORY}:${TIMESTAMP} .
+TAG=$(docker images ${DOCKER_REPOSITORY}:${TIMESTAMP} -q)
+
+# ECR: tag and push the image
+docker tag ${DOCKER_REPOSITORY}:${TIMESTAMP} ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${TAG}
+docker tag ${DOCKER_REPOSITORY}:${TIMESTAMP} ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:latest
+aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}
+docker push ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${TAG}
+docker push ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:latest
+
+# Deploy the CloudFormation template for the service
+aws cloudformation package --template-file template.yaml \
+  --output-template template-packaged.yaml \
+  --s3-bucket ${BUCKET_NAME}
+
+aws cloudformation deploy --template-file template-packaged.yaml \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --stack-name ${STACK_NAME}-${SERVICE_NAME} \
+  --parameter-overrides \
+      CloudFrontCertificateArn=${CERTIFICATE_ARN} \
+      Cluster=${STACK_NAME} \
+      DB=${RDS_ID} \
+      ECSSecurityGroup=${ECS_SECURITY_GROUP} \
+      EnvironmentName=${STACK_NAME} \
+      LoadBalancerDomainName=${ALB_DOMAIN_NAME} \
+      LoadBalancerListenerARN=${ALB_LISTENER_ARN} \
+      RDSEndpointAddress=${RDS_ENDPOINT_ADDRESS} \
+      ServiceDomainName=${SERVICE_DOMAIN_NAME} \
+      ServiceImage=${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${TAG} \
+      ServiceName=${SERVICE_NAME} \
+      VPC=${VPC} \
+      VPCPrivateSubnets=${PRIVATE_SUBNETS}
 

@@ -26,9 +26,9 @@ Run **aws configure** and set the region you'll deploy the applications to and a
 
 Open a terminal session and set the variable for your `domain name`:
 
-    export CFN_DOMAIN=<YOUR_DOMAIN_DOMAIN>
+    export DOMAIN=<YOUR_DOMAIN_DOMAIN>
 
-For `CFN_DOMAIN`, enter the base domain name of the applications. For example, if JIRA will have a domain name
+For `DOMAIN`, enter the base domain name of the applications. For example, if JIRA will have a domain name
 of `jira.example.com`, use `example.com`. The value must be all lowercase and cannot contain underscores, end with a
 dash, have consecutive periods, or use dashes adjacent to periods. The value must be for a domain name you can approve
 SSL certificates for using email or DNS validation.
@@ -51,8 +51,8 @@ application will be deployed to. The second command makes a request for `us-east
 because Amazon CloudFront requires the SSL certificate be available in the `us-east-1` region. So, if your application
 is running in us-east-1, the second request is redundant, but causes no harm.
 
-    aws acm request-certificate --domain-name \*.${CFN_DOMAIN}
-    aws acm request-certificate --domain-name \*.${CFN_DOMAIN} --region us-east-1                              
+    aws acm request-certificate --domain-name \*.${DOMAIN}
+    aws acm request-certificate --domain-name \*.${DOMAIN} --region us-east-1                              
 
 ---
 
@@ -249,7 +249,7 @@ ECS Servers sized for the following:
 * 4 GB - TeamCity (Tenant 2)
 * 8 GB - Upsource
 * 1 GB - MediaWiki
-* 10 BG - reserved for other applications
+* 10 GB - reserved for other applications
 
 #### Pricing Estimates
 
@@ -257,8 +257,9 @@ ECS Servers sized for the following:
 
 # Open Tasks
 
-* ECR
 * AWS Cognito -> ALB integration
+* Simplify application creation step
+* Review parameters that can be passed in secrets or parameter store
 * Review CloudFront Caching Policy
 * Update naming conventions
 * Test with multiple teamcity deploys
