@@ -1,11 +1,19 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: >
-  EFS
+Description: EFS
 Parameters:
 
   ECSSecurityGroup:
     Description: Security Group of ECS
     Type: AWS::EC2::SecurityGroup::Id
+
+  EFSProvisionedThroughput:
+    Type: String
+    Description: |
+      By default, the Elastic File System is configured to use "bursting" mode.
+      Optionally you can provision a minimum throughput, but you should only
+      change this value if you aware of the cost impacts. See: https://aws.amazon.com/efs/pricing/
+    AllowedValues: [ "", 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 ]
+    Default: ""
 
   FilesystemName:
     Description: Friendly Name for the file system
@@ -17,6 +25,13 @@ Parameters:
 
   VPC:
     Type: AWS::EC2::VPC::Id
+
+Conditions:
+
+  ProvisionThroughput: !Not
+    - !Equals
+      - !Ref EFSProvisionedThroughput
+      - ""
 
 Resources:
 
@@ -38,8 +53,8 @@ Resources:
       LifecyclePolicies:
         - TransitionToIA: AFTER_60_DAYS
       PerformanceMode: generalPurpose
-      ProvisionedThroughputInMibps: 10
-      ThroughputMode: provisioned
+      ProvisionedThroughputInMibps: !If [ ProvisionThroughput, !Ref EFSProvisionedThroughput, !Ref AWS::NoValue ]
+      ThroughputMode: !If [ ProvisionThroughput, provisioned, bursting ]
 
   EFSSecurityGroup:
     Type: AWS::EC2::SecurityGroup

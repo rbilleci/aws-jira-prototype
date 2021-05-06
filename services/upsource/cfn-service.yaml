@@ -25,6 +25,15 @@ Parameters:
     Description: Security Group ID used by ECS Cluster
     Type: String
 
+  EFSProvisionedThroughput:
+    Type: String
+    Description: |
+      By default, the Elastic File System is configured to use "bursting" mode.
+      Optionally you can provision a minimum throughput, but you should only
+      change this value if you aware of the cost impacts. See: https://aws.amazon.com/efs/pricing/
+    AllowedValues: [ "", 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 ]
+    Default: ""
+
   EnvironmentName:
     Description: An environment name that will be prefixed to resource names
     Type: String
@@ -240,6 +249,7 @@ Resources:
       TemplateURL: ../../components/cfn-efs.yaml
       Parameters:
         ECSSecurityGroup: !Ref ECSSecurityGroup
+        EFSProvisionedThroughput: !Ref EFSProvisionedThroughput
         FilesystemName: !Sub ${ServiceName}
         PrivateSubnets: !Ref VPCPrivateSubnets
         VPC: !Ref VPC

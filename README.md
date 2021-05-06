@@ -253,14 +253,14 @@ ECS Servers sized for the following:
 
 #### Pricing Estimates
 
-* On-Demand Pricing: https://calculator.aws/#/estimate?id=88a6c15b4b8c301e9306fb4abc39152ed4a76e29
+* On-Demand Pricing: https://calculator.aws/#/estimate?id=2202e6b07d84819f99d84f88a5660388980942d7
 
 # Open Tasks
 
-* Optimize EFS Configuration
+* ECR
 * AWS Cognito -> ALB integration
-* Common ECR
-* Update Naming conventions
+* Review CloudFront Caching Policy
+* Update naming conventions
 * Test with multiple teamcity deploys
 * Configure Elasticsearch Service Linked Role as CloudFormation resource
 * Accessibility of ES
