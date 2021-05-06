@@ -161,9 +161,9 @@ Resources:
             - Name: MEDIAWIKI_DATABASE_NAME
               Value: mediawiki
             - Name: MEDIAWIKI_DATABASE_USER
-              Value: !Sub "{{resolve:secretsmanager:/apps-mvsm-io/rds/${ServiceName}/credentials::username}}"
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::username}}"
             - Name: MEDIAWIKI_DATABASE_PASSWORD
-              Value: !Sub "{{resolve:secretsmanager:/apps-mvsm-io/rds/${ServiceName}/credentials::password}}"
+              Value: !Sub "{{resolve:secretsmanager:/${EnvironmentName}/rds/${ServiceName}/credentials::password}}"
             - Name: MEDIAWIKI_HOST
               Value: !Ref ServiceDomainName
             - Name: MEDIAWIKI_EXTERNAL_HTTP_PORT_NUMBER
