@@ -12,5 +12,5 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       ImageScanningConfiguration:
-        scanOnPush: false
+        ScanOnPush: false
       RepositoryName: !Ref RepositoryName
